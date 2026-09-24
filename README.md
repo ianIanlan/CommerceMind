@@ -201,6 +201,13 @@ LLM Key；设置 `DISABLE_LLM=false` 后即可在本地基础设施模式下使�
 真实中文向量服务的配置与预注册对照见 [中文语义 Embedding 实验](docs/semantic_embedding_experiment.md)。
 真实 LLM 与三路融合结果见 [融合冻结实验 v1](docs/live_fusion_experiment_v1.md)。
 
+完整 Docker 服务的路由、工具、越权隔离与退款幂等验证见
+[端到端面试证据 v1](docs/interview_evidence_v1.md)。可复现运行：
+
+```bash
+.runtime-venv/bin/python scripts/run_interview_evidence.py --base-url http://localhost:8000
+```
+
 RAG 检索消融实验：
 
 ```bash
