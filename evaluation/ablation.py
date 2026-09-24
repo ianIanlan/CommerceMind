@@ -74,6 +74,8 @@ class AblationReport:
     dataset_size: int
     dataset_sha256: str
     embedding_backends: List[str]
+    llm_request_count: int
+    llm_retry_rate: float
     live_llm: bool
     variants: List[VariantResult]
     source_latency_ms: Dict[str, float]
@@ -129,6 +131,17 @@ class IntentAblationRunner:
             embedding_backends=sorted({
                 str(item["embedding"].get("backend", "unknown")) for item in source_outputs
             }),
+            llm_request_count=(
+                sum(int(item["llm"].get("attempts", 1)) for item in source_outputs)
+                if self.live_llm else 0
+            ),
+            llm_retry_rate=(
+                round(
+                    sum(int(item["llm"].get("attempts", 1)) > 1 for item in source_outputs)
+                    / max(len(source_outputs), 1),
+                    4,
+                ) if self.live_llm else 0.0
+            ),
             live_llm=self.live_llm,
             variants=results,
             source_latency_ms={
@@ -299,6 +312,7 @@ def write_report(report: AblationReport, json_path: Path, markdown_path: Path) -
         f"- 数据集 SHA-256：`{report.dataset_sha256 or '未记录'}`",
         f"- Embedding 后端：{', '.join(report.embedding_backends)}",
         f"- LLM 实时参与：{'是' if report.live_llm else '否'}",
+        f"- LLM 实际请求数：{report.llm_request_count}；发生重试的样本比例：{report.llm_retry_rate:.2%}",
         "",
         "| 变体 | Accuracy (95% CI) | Macro-F1 | P50/P95 延迟(ms) | 错误数 |",
         "|---|---:|---:|---:|---:|",
