@@ -1,0 +1,12 @@
+CREATE TABLE IF NOT EXISTS products (product_id TEXT PRIMARY KEY, name TEXT NOT NULL, category TEXT NOT NULL, price DOUBLE PRECISION NOT NULL, is_virtual INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS orders (order_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, product_id TEXT NOT NULL REFERENCES products(product_id), status TEXT NOT NULL, amount DOUBLE PRECISION NOT NULL, created_at TEXT NOT NULL, delivered_at TEXT, address TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS payments (payment_id TEXT PRIMARY KEY, order_id TEXT NOT NULL REFERENCES orders(order_id), amount DOUBLE PRECISION NOT NULL, channel TEXT NOT NULL, status TEXT NOT NULL, paid_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS shipments (shipment_id TEXT PRIMARY KEY, order_id TEXT NOT NULL REFERENCES orders(order_id), carrier TEXT NOT NULL, tracking_no TEXT NOT NULL, status TEXT NOT NULL, events_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS refund_requests (refund_id TEXT PRIMARY KEY, order_id TEXT NOT NULL REFERENCES orders(order_id), user_id TEXT NOT NULL, amount DOUBLE PRECISION NOT NULL, reason TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS one_active_refund_per_order ON refund_requests(order_id, status);
+CREATE TABLE IF NOT EXISTS pending_actions (action_id TEXT PRIMARY KEY, action_type TEXT NOT NULL, user_id TEXT NOT NULL, order_id TEXT NOT NULL, payload_json TEXT NOT NULL, status TEXT NOT NULL, idempotency_key TEXT NOT NULL UNIQUE, resource_id TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS audit_events (event_id BIGSERIAL PRIMARY KEY, request_id TEXT, user_id TEXT NOT NULL, event_type TEXT NOT NULL, target_id TEXT, detail_json TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS handoff_tickets (ticket_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, conv_id TEXT NOT NULL, request_id TEXT NOT NULL UNIQUE, reason TEXT NOT NULL, intent TEXT NOT NULL, urgency TEXT NOT NULL, summary_json TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_pending_actions_user_id ON pending_actions(user_id);
+CREATE INDEX IF NOT EXISTS idx_handoff_tickets_user_id ON handoff_tickets(user_id);
