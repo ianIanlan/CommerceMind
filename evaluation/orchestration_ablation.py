@@ -117,13 +117,25 @@ class OrchestrationAblationRunner:
         return max(0.0, centre - margin), min(1.0, centre + margin)
 
 
-def write_orchestration_report(results: List[OrchestrationVariant], json_path: Path, markdown_path: Path) -> None:
+def write_orchestration_report(
+    results: List[OrchestrationVariant],
+    json_path: Path,
+    markdown_path: Path,
+    dataset_sha256: str = "",
+    dataset_size: int = 0,
+    tuned_on_dataset: bool = True,
+) -> None:
     json_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.write_text(json.dumps([asdict(item) for item in results], ensure_ascii=False, indent=2), encoding="utf-8")
     lines = [
         "# Agent 编排消融实验", "",
+        f"数据集规模：{dataset_size or '未记录'}；SHA-256：`{dataset_sha256 or '未记录'}`。", "",
         "本实验只评价路由覆盖，不评价最终回答质量。置信区间为 exact match 的 Wilson 95% CI。", "",
-        "该数据集是用于开发和回归的合成集，路由规则已根据其中的错误样本调整；100% 不能解释为未知流量上的泛化准确率。", "",
+        (
+            "该数据集是用于开发和回归的合成集，路由规则已根据其中的错误样本调整；结果不能解释为未知流量上的泛化准确率。"
+            if tuned_on_dataset
+            else "该文件是冻结的合成 holdout v1；本轮只记录结果，不根据错误样本继续调整路由规则。"
+        ), "",
         "| 方案 | 精确匹配 (95% CI) | Micro-F1 | 领域召回 | 多余 Agent 率 | 单域/多域精确匹配 | 平均 Agent 数 |",
         "|---|---:|---:|---:|---:|---:|---:|",
     ]

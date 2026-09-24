@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import argparse
+import hashlib
 import pathlib
 import sys
 
@@ -8,7 +10,21 @@ if str(ROOT) not in sys.path:
 
 from evaluation.orchestration_ablation import OrchestrationAblationRunner, load_orchestration_cases, write_orchestration_report
 
-cases = load_orchestration_cases(ROOT / "data/eval/orchestration_cases.jsonl")
+parser = argparse.ArgumentParser()
+parser.add_argument("--dataset", type=pathlib.Path, default=ROOT / "data/eval/orchestration_cases.jsonl")
+parser.add_argument("--name", default="orchestration_ablation")
+args = parser.parse_args()
+
+cases = load_orchestration_cases(args.dataset)
 results = OrchestrationAblationRunner().run(cases)
-write_orchestration_report(results, ROOT / "outputs/orchestration_ablation.json", ROOT / "outputs/orchestration_ablation.md")
-print(ROOT / "outputs/orchestration_ablation.md")
+json_path = ROOT / "outputs" / f"{args.name}.json"
+markdown_path = ROOT / "outputs" / f"{args.name}.md"
+write_orchestration_report(
+    results,
+    json_path,
+    markdown_path,
+    dataset_sha256=hashlib.sha256(args.dataset.read_bytes()).hexdigest(),
+    dataset_size=len(cases),
+    tuned_on_dataset="holdout" not in args.dataset.name.lower(),
+)
+print(markdown_path)

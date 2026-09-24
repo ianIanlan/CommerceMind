@@ -1,0 +1,12 @@
+{"case_id":"holdout-single-logistics","message":"包裹从昨天开始没有更新","intent":"logistics","expected_agents":["order"]}
+{"case_id":"holdout-single-refund-status","message":"商家说钱退了但银行卡余额没变化","intent":"refund_status","expected_agents":["billing"]}
+{"case_id":"holdout-single-damage","message":"收到的机器屏幕已经裂开","intent":"damaged_item","expected_agents":["after_sales"]}
+{"case_id":"holdout-single-login","message":"验证码正确但还是进不去账号","intent":"technical_login","expected_agents":["technical"]}
+{"case_id":"holdout-single-human","message":"请安排真人客服接手","intent":"human_handoff","expected_agents":["escalation"]}
+{"case_id":"holdout-multi-logistics-charge","message":"货还在路上不动，银行卡又划走了两笔钱","intent":"logistics","expected_agents":["order","billing"]}
+{"case_id":"holdout-multi-crash-address","message":"改收货地址的页面一打开就闪退","intent":"address_change","expected_agents":["order","technical"]}
+{"case_id":"holdout-multi-return-invoice","message":"鞋码不合适要换货，另外补一张公司发票","intent":"return_exchange","expected_agents":["after_sales","billing"]}
+{"case_id":"holdout-multi-damage-logistics","message":"快递晚到而且开箱发现屏幕破裂","intent":"damaged_item","expected_agents":["after_sales","order"]}
+{"case_id":"holdout-multi-payment-login","message":"结算已经扣钱，但重新登录后订单看不到了","intent":"payment_issue","expected_agents":["billing","technical"]}
+{"case_id":"holdout-multi-cancel-refund","message":"订单还没出库，我想撤单并把款项原路退回","intent":"order_cancel","expected_agents":["order","after_sales"]}
+{"case_id":"holdout-multi-error-refund-status","message":"查询退款进度时页面报500，钱也一直没回来","intent":"refund_status","expected_agents":["billing","technical"]}

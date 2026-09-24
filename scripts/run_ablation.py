@@ -16,7 +16,7 @@ load_dotenv(ROOT / ".env.local")
 load_dotenv(ROOT / ".env")
 
 from core.intent_recognizer import IntentRecognizer
-from evaluation.ablation import IntentAblationRunner, load_cases, write_report
+from evaluation.ablation import IntentAblationRunner, dataset_sha256, load_cases, write_report
 
 
 def main():
@@ -32,7 +32,11 @@ def main():
         base_url=os.getenv("ANTHROPIC_BASE_URL") or None,
         model=os.getenv("ANTHROPIC_MODEL", "deepseek-flash"),
     )
-    report = asyncio.run(IntentAblationRunner(recognizer, live_llm=args.live_llm).run(load_cases(args.dataset)))
+    report = asyncio.run(
+        IntentAblationRunner(recognizer, live_llm=args.live_llm).run(
+            load_cases(args.dataset), dataset_sha256=dataset_sha256(args.dataset)
+        )
+    )
     suffix = "live" if args.live_llm else "offline"
     json_path = args.output_dir / f"{args.name}_{suffix}.json"
     markdown_path = args.output_dir / f"{args.name}_{suffix}.md"

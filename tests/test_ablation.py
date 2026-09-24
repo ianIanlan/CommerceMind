@@ -1,7 +1,7 @@
 import asyncio
 
 from core.intent_recognizer import IntentCategory
-from evaluation.ablation import AblationCase, AblationVariant, IntentAblationRunner, load_cases
+from evaluation.ablation import AblationCase, AblationVariant, IntentAblationRunner, dataset_sha256, load_cases
 
 
 class FakeRecognizer:
@@ -50,3 +50,14 @@ def test_robustness_dataset_is_valid_and_unique():
     assert len(cases) == 20
     assert len({case.case_id for case in cases}) == 20
     assert all(case.tags for case in cases)
+
+
+def test_frozen_intent_holdout_v1_identity_and_coverage():
+    from pathlib import Path
+
+    path = Path("data/eval/intent_holdout_v1.jsonl")
+    cases = load_cases(path)
+
+    assert len(cases) == 20
+    assert dataset_sha256(path) == "2c68252a0e05c29e2e18e32399528b5a681701f3b1da12fe486e87efb6d88801"
+    assert all("holdout" in case.tags for case in cases)

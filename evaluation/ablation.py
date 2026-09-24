@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import statistics
 import time
@@ -71,6 +72,7 @@ class VariantResult:
 @dataclass
 class AblationReport:
     dataset_size: int
+    dataset_sha256: str
     live_llm: bool
     variants: List[VariantResult]
     source_latency_ms: Dict[str, float]
@@ -87,6 +89,7 @@ class IntentAblationRunner:
         self,
         cases: Sequence[AblationCase],
         variants: Sequence[AblationVariant] = DEFAULT_VARIANTS,
+        dataset_sha256: str = "",
     ) -> AblationReport:
         source_outputs: List[Dict[str, Dict[str, Any]]] = []
         source_latencies: Dict[str, List[float]] = {"llm": [], "embedding": [], "pattern": []}
@@ -121,6 +124,7 @@ class IntentAblationRunner:
         ]
         return AblationReport(
             dataset_size=len(cases),
+            dataset_sha256=dataset_sha256,
             live_llm=self.live_llm,
             variants=results,
             source_latency_ms={
@@ -274,6 +278,10 @@ def load_cases(path: Path) -> List[AblationCase]:
     return cases
 
 
+def dataset_sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def write_report(report: AblationReport, json_path: Path, markdown_path: Path) -> None:
     json_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.write_text(json.dumps(asdict(report), ensure_ascii=False, indent=2), encoding="utf-8")
@@ -281,6 +289,7 @@ def write_report(report: AblationReport, json_path: Path, markdown_path: Path) -
         "# CommerceMind 意图识别消融实验",
         "",
         f"- 数据集规模：{report.dataset_size}",
+        f"- 数据集 SHA-256：`{report.dataset_sha256 or '未记录'}`",
         f"- LLM 实时参与：{'是' if report.live_llm else '否'}",
         "",
         "| 变体 | Accuracy (95% CI) | Macro-F1 | P50/P95 延迟(ms) | 错误数 |",
