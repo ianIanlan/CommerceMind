@@ -24,6 +24,7 @@ from anthropic import AsyncAnthropic
 
 from core.llm_utils import extract_text_content
 from core.llm_client import build_llm_client
+from core.embeddings import EmbeddingProviderError, OpenAICompatibleEmbeddingClient
 
 logger = logging.getLogger(__name__)
 
@@ -193,6 +194,24 @@ class IntentRecognizer:
         self._embedding_enabled = os.getenv("INTENT_EMBEDDING_ENABLED", "false").lower() in {
             "1", "true", "yes",
         }
+        embedding_base_url = os.getenv("EMBEDDING_BASE_URL", "").strip()
+        embedding_api_key = os.getenv("EMBEDDING_API_KEY", "").strip()
+        embedding_model = os.getenv("EMBEDDING_MODEL", "").strip()
+        if any((embedding_base_url, embedding_api_key, embedding_model)) and not all(
+            (embedding_base_url, embedding_api_key, embedding_model)
+        ):
+            raise ValueError(
+                "EMBEDDING_BASE_URL, EMBEDDING_API_KEY and EMBEDDING_MODEL must be configured together"
+            )
+        self._semantic_embedding_client = (
+            OpenAICompatibleEmbeddingClient(embedding_api_key, embedding_base_url, embedding_model)
+            if embedding_base_url and embedding_api_key and embedding_model
+            else None
+        )
+        self._embedding_backend = "semantic_remote" if self._semantic_embedding_client else "char_ngram_local"
+        self._embedding_fallback_local = os.getenv("EMBEDDING_FALLBACK_LOCAL", "false").lower() in {
+            "1", "true", "yes",
+        }
 
         self._tpl_embeddings: Dict[IntentCategory, List[List[float]]] = {}
         self._cache: Dict[str, IntentResult] = {}
@@ -354,10 +373,16 @@ class IntentRecognizer:
                 if score > best_score:
                     best_score, best_cat = score, cat
 
-            return {"intent": best_cat, "confidence": best_score}
+            return {"intent": best_cat, "confidence": best_score, "backend": self._embedding_backend}
         except Exception as ex:
             logger.warning(f"Embedding 识别失败: {ex}")
-            return {"intent": IntentCategory.OTHER, "confidence": 0.0}
+            return {
+                "intent": IntentCategory.OTHER,
+                "confidence": 0.0,
+                "backend": self._embedding_backend,
+                "failed": True,
+                "error": type(ex).__name__,
+            }
 
     def _pattern_recognize(self, message: str) -> Dict[str, Any]:
         """策略 3：关键词模式匹配（同步，零延迟兜底）。"""
@@ -487,7 +512,7 @@ class IntentRecognizer:
             return
 
         all_texts = [t for cat in missing for t in _TEMPLATES[cat]]
-        vecs = [await self._embed_text(text) for text in all_texts]
+        vecs = await self._embed_texts(all_texts)
         idx = 0
         for cat in missing:
             n = len(_TEMPLATES[cat])
@@ -498,19 +523,23 @@ class IntentRecognizer:
         """
         生成文本向量。
 
-        如果未来接入的官方/兼容客户端提供 embeddings.create，会优先使用远端向量；
-        当前 Anthropic SDK 没有该资源时，退化为字符 n-gram 哈希向量。这样不会因为
-        Embedding 服务缺失导致三路融合中断。
+        配置独立的 OpenAI-compatible Embeddings 服务时使用真实语义向量；未配置时使用
+        字符 n-gram 实验基线。远端服务失败默认显式失败，只有设置
+        EMBEDDING_FALLBACK_LOCAL=true 才允许降级，避免把字符向量误报为语义模型结果。
         """
-        embeddings = getattr(self.client, "embeddings", None)
-        if embeddings is not None:
-            try:
-                resp = await embeddings.create(model="voyage-3-lite", input=[text])
-                return list(resp.data[0].embedding)
-            except Exception as ex:
-                logger.warning(f"远端 Embedding 失败，使用本地向量兜底: {ex}")
+        return (await self._embed_texts([text]))[0]
 
-        return self._local_embedding(text)
+    async def _embed_texts(self, texts: List[str]) -> List[List[float]]:
+        """Embed a batch and keep semantic-provider failures visible to experiments."""
+        if self._semantic_embedding_client is not None:
+            try:
+                return await self._semantic_embedding_client.embed(texts)
+            except EmbeddingProviderError:
+                if not self._embedding_fallback_local:
+                    raise
+                logger.exception("语义 Embedding 失败，显式配置允许字符向量降级")
+                self._embedding_backend = "char_ngram_fallback"
+        return [self._local_embedding(text) for text in texts]
 
     @staticmethod
     def _local_embedding(text: str, dims: int = 256) -> List[float]:

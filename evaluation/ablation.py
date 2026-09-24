@@ -73,6 +73,7 @@ class VariantResult:
 class AblationReport:
     dataset_size: int
     dataset_sha256: str
+    embedding_backends: List[str]
     live_llm: bool
     variants: List[VariantResult]
     source_latency_ms: Dict[str, float]
@@ -125,6 +126,9 @@ class IntentAblationRunner:
         return AblationReport(
             dataset_size=len(cases),
             dataset_sha256=dataset_sha256,
+            embedding_backends=sorted({
+                str(item["embedding"].get("backend", "unknown")) for item in source_outputs
+            }),
             live_llm=self.live_llm,
             variants=results,
             source_latency_ms={
@@ -290,6 +294,7 @@ def write_report(report: AblationReport, json_path: Path, markdown_path: Path) -
         "",
         f"- 数据集规模：{report.dataset_size}",
         f"- 数据集 SHA-256：`{report.dataset_sha256 or '未记录'}`",
+        f"- Embedding 后端：{', '.join(report.embedding_backends)}",
         f"- LLM 实时参与：{'是' if report.live_llm else '否'}",
         "",
         "| 变体 | Accuracy (95% CI) | Macro-F1 | P50/P95 延迟(ms) | 错误数 |",

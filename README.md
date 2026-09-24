@@ -198,6 +198,7 @@ LLM Key；设置 `DISABLE_LLM=false` 后即可在本地基础设施模式下使�
 
 实验结论见 [意图识别消融实验结论](docs/intent_ablation_findings.md)。
 冻结数据集与开发集差异见 [实验基线 v1](docs/experiment_baseline_v1.md)。
+真实中文向量服务的配置与预注册对照见 [中文语义 Embedding 实验](docs/semantic_embedding_experiment.md)。
 
 RAG 检索消融实验：
 
