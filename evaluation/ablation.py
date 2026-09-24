@@ -139,6 +139,9 @@ class IntentAblationRunner:
             source_metrics={
                 source: {
                     "avg_latency_ms": round(statistics.mean(values), 3) if values else 0.0,
+                    "warm_avg_latency_ms": round(statistics.mean(values[1:]), 3) if len(values) > 1 else 0.0,
+                    "cold_start_latency_ms": round(values[0], 3) if values else 0.0,
+                    "max_latency_ms": round(max(values), 3) if values else 0.0,
                     "p50_latency_ms": round(self._percentile(values, 50), 3),
                     "p95_latency_ms": round(self._percentile(values, 95), 3),
                     "failure_rate": round(
@@ -309,6 +312,8 @@ def write_report(report: AblationReport, json_path: Path, markdown_path: Path) -
     for source, metrics in report.source_metrics.items():
         lines.append(
             f"- {source}: avg={metrics['avg_latency_ms']:.3f} ms, "
+            f"warm_avg={metrics['warm_avg_latency_ms']:.3f} ms, "
+            f"cold_start={metrics['cold_start_latency_ms']:.3f} ms, max={metrics['max_latency_ms']:.3f} ms, "
             f"P50={metrics['p50_latency_ms']:.3f} ms, P95={metrics['p95_latency_ms']:.3f} ms, "
             f"failure_rate={metrics['failure_rate']:.2%}"
         )

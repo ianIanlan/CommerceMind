@@ -6,6 +6,7 @@ local fallback without downloading model weights during application startup.
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import math
 from typing import Dict, Iterable, List, Optional
@@ -109,3 +110,33 @@ class OpenAICompatibleEmbeddingClient:
     def _normalized(vector: List[float]) -> List[float]:
         norm = math.sqrt(sum(value * value for value in vector))
         return [value / norm for value in vector] if norm else vector
+
+
+class FastEmbedEmbeddingClient:
+    """Lazy CPU-only local semantic embeddings backed by FastEmbed/ONNX."""
+
+    def __init__(self, model: str = "BAAI/bge-small-zh-v1.5"):
+        self.model_name = model
+        self._model = None
+        self._cache: Dict[str, List[float]] = {}
+
+    async def embed(self, texts: Iterable[str]) -> List[List[float]]:
+        items = [str(text) for text in texts]
+        missing = list(dict.fromkeys(text for text in items if text not in self._cache))
+        if missing:
+            vectors = await asyncio.to_thread(self._embed_sync, missing)
+            if len(vectors) != len(missing):
+                raise EmbeddingProviderError(
+                    f"local embedding count mismatch: requested={len(missing)}, returned={len(vectors)}"
+                )
+            self._cache.update(zip(missing, vectors))
+        return [self._cache[text] for text in items]
+
+    def _embed_sync(self, texts: List[str]) -> List[List[float]]:
+        try:
+            if self._model is None:
+                from fastembed import TextEmbedding
+                self._model = TextEmbedding(model_name=self.model_name)
+            return [OpenAICompatibleEmbeddingClient._normalized(vector.tolist()) for vector in self._model.embed(texts)]
+        except (ImportError, RuntimeError, ValueError) as exc:
+            raise EmbeddingProviderError(str(exc)) from exc

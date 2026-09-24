@@ -76,3 +76,14 @@
 5. LLM + 中文 Embedding + 关键词的生产融合。
 
 统一报告 Accuracy、Macro-F1、Wilson 95% CI、P50/P95 延迟、失败率和单次请求成本。Multi-Agent 额外报告领域召回、多余 Agent 率、工具越权率和每请求 Agent 数。
+
+## 6. 本地中文语义 Embedding 结果
+
+使用 FastEmbed `0.7.4` 与 `BAAI/bge-small-zh-v1.5`（512 维、ONNX CPU）执行预注册对照。模型由 FastEmbed 官方支持列表确认，实验没有依据 holdout v1 错误继续修改标签或规则。
+
+| 数据集 | 字符 Embedding Accuracy | BGE 中文 Accuracy | BGE Macro-F1 | BGE P95 | 失败率 |
+|---|---:|---:|---:|---:|---:|
+| 开发集 30 条 | 50.00% | 80.00% | 68.79% | 6.26 ms | 0% |
+| 冻结 holdout v1 20 条 | 25.00% | 30.00% | 24.24% | 52.35 ms | 0% |
+
+结论：训练过的中文向量模型在开发集上比字符哈希高 30 个百分点，但在冻结集上只高 5 个百分点。它适合提供辅助证据，当前证据不足以支持单独承担意图路由。冻结集复跑中 warm average 为 5.21 ms，但首次模板向量加载为 936.21 ms，并把 P95 推高到 52.35 ms。因此后续报告同时记录 cold start、warm average、P95 和 max，不能只展示热路径延迟。

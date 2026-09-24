@@ -1,0 +1,3 @@
+# Optional local semantic-embedding experiment dependencies.
+# Kept separate so the default API/Docker image remains small.
+fastembed==0.7.4

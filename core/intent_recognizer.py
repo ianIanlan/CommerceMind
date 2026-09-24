@@ -24,7 +24,7 @@ from anthropic import AsyncAnthropic
 
 from core.llm_utils import extract_text_content
 from core.llm_client import build_llm_client
-from core.embeddings import EmbeddingProviderError, OpenAICompatibleEmbeddingClient
+from core.embeddings import EmbeddingProviderError, FastEmbedEmbeddingClient, OpenAICompatibleEmbeddingClient
 
 logger = logging.getLogger(__name__)
 
@@ -194,21 +194,31 @@ class IntentRecognizer:
         self._embedding_enabled = os.getenv("INTENT_EMBEDDING_ENABLED", "false").lower() in {
             "1", "true", "yes",
         }
+        embedding_backend = os.getenv("EMBEDDING_BACKEND", "char").strip().lower()
         embedding_base_url = os.getenv("EMBEDDING_BASE_URL", "").strip()
         embedding_api_key = os.getenv("EMBEDDING_API_KEY", "").strip()
         embedding_model = os.getenv("EMBEDDING_MODEL", "").strip()
-        if any((embedding_base_url, embedding_api_key, embedding_model)) and not all(
+        if embedding_backend not in {"char", "remote", "fastembed"}:
+            raise ValueError("EMBEDDING_BACKEND must be one of: char, remote, fastembed")
+        if embedding_backend == "remote" and not all(
             (embedding_base_url, embedding_api_key, embedding_model)
         ):
             raise ValueError(
                 "EMBEDDING_BASE_URL, EMBEDDING_API_KEY and EMBEDDING_MODEL must be configured together"
             )
-        self._semantic_embedding_client = (
-            OpenAICompatibleEmbeddingClient(embedding_api_key, embedding_base_url, embedding_model)
-            if embedding_base_url and embedding_api_key and embedding_model
-            else None
-        )
-        self._embedding_backend = "semantic_remote" if self._semantic_embedding_client else "char_ngram_local"
+        if embedding_backend == "remote":
+            self._semantic_embedding_client = OpenAICompatibleEmbeddingClient(
+                embedding_api_key, embedding_base_url, embedding_model
+            )
+            self._embedding_backend = "semantic_remote"
+        elif embedding_backend == "fastembed":
+            self._semantic_embedding_client = FastEmbedEmbeddingClient(
+                embedding_model or "BAAI/bge-small-zh-v1.5"
+            )
+            self._embedding_backend = "semantic_local_fastembed"
+        else:
+            self._semantic_embedding_client = None
+            self._embedding_backend = "char_ngram_local"
         self._embedding_fallback_local = os.getenv("EMBEDDING_FALLBACK_LOCAL", "false").lower() in {
             "1", "true", "yes",
         }

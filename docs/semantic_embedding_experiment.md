@@ -2,6 +2,10 @@
 
 CommerceMind 将字符 n-gram 基线与真正的语义 Embedding 明确区分。实验报告会记录实际后端名称；远端模型失败默认计为失败，不会静默使用字符向量并继续标记为“Embedding”。
 
+项目同时支持本地 FastEmbed/ONNX，官方支持列表中的 `BAAI/bge-small-zh-v1.5` 为约 90MB、512 维中文模型。FastEmbed 是可选依赖，不进入默认 API 镜像。
+
+模型信息来源：[FastEmbed 官方支持模型列表](https://qdrant.github.io/fastembed/examples/Supported_Models/)。
+
 ## 接口要求
 
 服务应支持 OpenAI-compatible：
@@ -14,6 +18,21 @@ Authorization: Bearer <key>
 请求使用 `model`、批量 `input` 和 `encoding_format=float`。客户端会批量生成模板向量、进行 L2 归一化并缓存重复文本。
 
 ## 配置
+
+### 本地中文模型
+
+```bash
+.runtime-venv/bin/python -m pip install -r requirements-embeddings.txt
+.runtime-venv/bin/python scripts/run_ablation.py \
+  --embedding-backend fastembed \
+  --embedding-model BAAI/bge-small-zh-v1.5 \
+  --dataset data/eval/intent_holdout_v1.jsonl \
+  --name fastembed_zh_holdout_v1
+```
+
+首次运行会下载模型；后续使用本地缓存。报告后端应显示 `semantic_local_fastembed`。
+
+### 远程兼容接口
 
 在本地 `.env` 配置：
 
@@ -38,7 +57,7 @@ EMBEDDING_FALLBACK_LOCAL=false
 
 报告必须满足：
 
-- `Embedding 后端` 显示 `semantic_remote`；
+- `Embedding 后端` 与实际方案一致：本地为 `semantic_local_fastembed`，远程为 `semantic_remote`；
 - `failure_rate` 单独报告，不能删除失败样本；
 - 保留冻结集 SHA-256；
 - 不依据 holdout v1 错误继续改规则或标签；

@@ -25,7 +25,14 @@ def main():
     parser.add_argument("--dataset", type=pathlib.Path, default=ROOT / "data/eval/intent_cases.jsonl")
     parser.add_argument("--output-dir", type=pathlib.Path, default=ROOT / "outputs")
     parser.add_argument("--name", default="intent_ablation", help="报告文件名前缀")
+    parser.add_argument("--embedding-backend", choices=["char", "fastembed", "remote"])
+    parser.add_argument("--embedding-model")
     args = parser.parse_args()
+
+    if args.embedding_backend:
+        os.environ["EMBEDDING_BACKEND"] = args.embedding_backend
+    if args.embedding_model:
+        os.environ["EMBEDDING_MODEL"] = args.embedding_model
 
     recognizer = IntentRecognizer(
         api_key=os.getenv("ANTHROPIC_API_KEY", "offline-key"),
