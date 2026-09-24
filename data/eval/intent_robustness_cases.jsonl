@@ -1,0 +1,20 @@
+{"case_id":"robust_logistics_01","message":"单号 ORD-10002 卡路上好几天了，帮瞅瞅走哪儿了","expected_intent":"logistics","tags":["colloquial"]}
+{"case_id":"robust_order_01","message":"ORD-10001 到底出库没","expected_intent":"order_status","tags":["ellipsis"]}
+{"case_id":"robust_duplicate_01","message":"我只买了一回咋账上划走两笔","expected_intent":"duplicate_payment","tags":["implicit"]}
+{"case_id":"robust_refund_01","message":"耳机不合适，钱给我原路退回吧","expected_intent":"refund","tags":["paraphrase"]}
+{"case_id":"robust_refund_status_01","message":"之前退的钱还没回来，查下走到哪一步了","expected_intent":"refund_status","tags":["implicit"]}
+{"case_id":"robust_return_01","message":"大小不对能不能给我调一件","expected_intent":"return_exchange","tags":["implicit"]}
+{"case_id":"robust_damage_01","message":"箱子里少了个配件，不是我要退款，是想补发","expected_intent":"damaged_item","tags":["negation"]}
+{"case_id":"robust_cancel_01","message":"趁还没寄出帮我把这单撤了","expected_intent":"order_cancel","tags":["implicit"]}
+{"case_id":"robust_address_01","message":"收件地方写岔了，现在还能改不","expected_intent":"address_change","tags":["colloquial"]}
+{"case_id":"robust_invoice_01","message":"公司报销要票，抬头怎么填","expected_intent":"invoice","tags":["implicit"]}
+{"case_id":"robust_payment_01","message":"卡里有钱但结算一直过不去","expected_intent":"payment_issue","tags":["implicit"]}
+{"case_id":"robust_login_01","message":"账号密码没错就是进不去","expected_intent":"technical_login","tags":["implicit"]}
+{"case_id":"robust_crash_01","message":"一点开软件就自己关掉了","expected_intent":"technical_crash","tags":["implicit"]}
+{"case_id":"robust_security_01","message":"半夜有台陌生设备进过我的号","expected_intent":"account_security","tags":["implicit"]}
+{"case_id":"robust_product_01","message":"这个包防不防水，电脑能塞多大尺寸","expected_intent":"product_query","tags":["multi_question"]}
+{"case_id":"robust_human_01","message":"别让机器人答了，换真人来","expected_intent":"human_handoff","tags":["colloquial"]}
+{"case_id":"robust_complaint_01","message":"处理三次都没结果，我要正式反馈你们服务","expected_intent":"escalation","tags":["implicit"]}
+{"case_id":"robust_greeting_01","message":"在吗，早啊","expected_intent":"greeting","tags":["colloquial"]}
+{"case_id":"robust_query_01","message":"你这边都能处理哪些事情","expected_intent":"query","tags":["paraphrase"]}
+{"case_id":"robust_damage_02","message":"发来的颜色不对，不是物流慢的问题","expected_intent":"damaged_item","tags":["negation"]}

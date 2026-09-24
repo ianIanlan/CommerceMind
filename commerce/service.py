@@ -10,12 +10,14 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from commerce.models import ActionResult, ActionStatus, EligibilityResult, ToolOutcome
+from commerce.payment_gateway import PaymentGateway
 from commerce.store import CommerceStore, utc_now
 
 
 class CommerceService:
-    def __init__(self, store: CommerceStore):
+    def __init__(self, store: CommerceStore, payment_gateway: Optional[PaymentGateway] = None):
         self.store = store
+        self.payment_gateway = payment_gateway
 
     def _owned_order(self, user_id: str, order_id: str) -> Optional[Dict[str, Any]]:
         return self.store.fetch_one(
@@ -267,14 +269,39 @@ class CommerceService:
             resource_id: Optional[str] = None
             result_data: Dict[str, Any] = {"order_id": action["order_id"]}
             if action["action_type"] == "create_refund":
-                resource_id = f"rf_{uuid.uuid4().hex[:12]}"
+                payment = conn.execute(
+                    "SELECT * FROM payments WHERE order_id=? AND status='succeeded' ORDER BY paid_at DESC LIMIT 1",
+                    (action["order_id"],),
+                ).fetchone()
+                provider_status = "pending"
+                if self.payment_gateway and payment and dict(payment).get("channel") == "stripe":
+                    gateway_result = self.payment_gateway.refund(
+                        dict(payment)["payment_id"],
+                        float(payload["amount"]),
+                        action_id,
+                        {"order_id": action["order_id"], "user_id": user_id},
+                    )
+                    if not gateway_result.success:
+                        raise ValueError(
+                            f"支付渠道退款失败 [{gateway_result.error_code or 'UNKNOWN'}]："
+                            f"{gateway_result.error or '请稍后重试'}"
+                        )
+                    resource_id = gateway_result.refund_id
+                    provider_status = gateway_result.status
+                else:
+                    resource_id = f"rf_{uuid.uuid4().hex[:12]}"
                 conn.execute(
                     """INSERT INTO refund_requests(refund_id,order_id,user_id,amount,reason,status,created_at)
                        VALUES(?,?,?,?,?,?,?)""",
-                    (resource_id, action["order_id"], user_id, float(payload["amount"]), payload["reason"], "pending", utc_now()),
+                    (resource_id, action["order_id"], user_id, float(payload["amount"]), payload["reason"], provider_status, utc_now()),
                 )
-                event_type, message = "REFUND_CREATED", "退款申请已创建，当前状态为待审核。"
-                result_data.update({"refund_id": resource_id, "refund_status": "pending"})
+                event_type = "REFUND_CREATED"
+                message = (
+                    f"支付渠道退款已创建，当前状态为 {provider_status}。"
+                    if self.payment_gateway and payment and dict(payment).get("channel") == "stripe"
+                    else "退款申请已创建，当前状态为待审核。"
+                )
+                result_data.update({"refund_id": resource_id, "refund_status": provider_status})
             elif action["action_type"] == "cancel_order":
                 updated = conn.execute(
                     "UPDATE orders SET status='cancelled' WHERE order_id=? AND user_id=? AND status IN ('pending_payment','paid')",
@@ -320,9 +347,14 @@ class CommerceService:
                 "SELECT * FROM refund_requests WHERE order_id=? AND user_id=? ORDER BY created_at DESC",
                 (self.store.fetch_one("SELECT order_id FROM pending_actions WHERE action_id=?", (action_id,)) or {}).get("order_id", ""), user_id,
             )
+            if existing:
+                return ActionResult(
+                    action_id, "create_refund", ActionStatus.SUCCEEDED, False,
+                    "该订单已存在退款申请，未重复创建。", resource_id=existing.get("refund_id"),
+                )
             return ActionResult(
-                action_id, "create_refund", ActionStatus.SUCCEEDED, False,
-                "该订单已存在退款申请，未重复创建。", resource_id=existing.get("refund_id") if existing else None,
+                action_id, "unknown", ActionStatus.FAILED, False,
+                "动作执行失败，业务状态未提交，请稍后重试或转人工处理。",
             )
 
     @staticmethod

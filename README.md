@@ -161,6 +161,9 @@ LLM Key；设置 `DISABLE_LLM=false` 后即可在本地基础设施模式下使�
 退款采用两阶段流程：`prepare` 只返回待确认动作，`confirm` 才创建退款申请；重复确认不会
 重复创建退款。
 
+可选的 Stripe Test Mode 会把确认后的退款发送到真实支付沙箱，并使用动作 ID 保证渠道侧幂等；
+运行方法与证据要求见 [Stripe Test Mode 集成验证](docs/stripe_test_integration.md)。
+
 取消订单和修改地址也使用同一套 `prepare -> confirm` 状态机：
 
 - `POST /commerce/orders/cancel/prepare`

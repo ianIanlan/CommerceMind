@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Callable, List
 
 from commerce.models import ActionStatus
+from commerce.payment_gateway import GatewayRefund
 from commerce.service import CommerceService
 from commerce.store import CommerceStore
 
@@ -26,6 +27,7 @@ class CommerceTaskEvaluator:
             ("cancel_requires_confirmation", self._cancel_confirmation),
             ("shipped_address_change_rejected", self._address_boundary),
             ("handoff_is_persistent", self._handoff),
+            ("provider_failure_never_reports_success", self._provider_failure),
         ]
         results = []
         for name, check in checks:
@@ -67,6 +69,24 @@ class CommerceTaskEvaluator:
     def _handoff(service: CommerceService, _store: CommerceStore) -> None:
         ticket = service.create_handoff_ticket("demo-user", "c1", "r1", "人工", "human_handoff", "HIGH", {})
         assert service.get_handoff_ticket("demo-user", ticket["ticket_id"])["status"] == "open"
+
+    @staticmethod
+    def _provider_failure(_service: CommerceService, _store: CommerceStore) -> None:
+        class FailingGateway:
+            def refund(self, payment_reference, amount, idempotency_key, metadata=None):
+                return GatewayRefund(False, None, "failed", "provider_down", "simulated outage")
+
+        store = CommerceStore(":memory:")
+        store.seed_demo_data()
+        store.execute(
+            "UPDATE payments SET payment_id=?, channel='stripe' WHERE order_id=?",
+            ("pi_simulated", "ORD-10001"),
+        )
+        service = CommerceService(store, payment_gateway=FailingGateway())
+        action = service.prepare_refund("demo-user", "ORD-10001", "provider failure test", "provider-failure")
+        result = service.confirm_action("demo-user", action.action_id)
+        assert result.status is ActionStatus.FAILED, "provider failure was reported as success"
+        assert not store.fetch_all("SELECT * FROM refund_requests"), "failed provider call created a local refund"
 
 
 def write_task_report(results: List[TaskResult], json_path: Path, markdown_path: Path) -> None:

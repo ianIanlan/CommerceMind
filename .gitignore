@@ -12,8 +12,13 @@ venv/
 .env
 .env.local
 
-# 数据目录
-data/
+# 运行数据不提交；评测集和公开示例作为可复现实验资产提交
+data/*
+!data/eval/
+!data/eval/**
+data/eval/baseline.json
+!data/demo_docs/
+!data/demo_docs/**
 logs/
 outputs/
 

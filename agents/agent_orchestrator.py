@@ -1286,10 +1286,11 @@ class AgentOrchestrator:
             scores[AgentType.BILLING] += 0.75
 
         technical_kws = ["崩溃", "报错", "error", "crash", "无法登录", "登录失败", "500", "401", "验证码"]
-        billing_kws = ["退款到账", "退款进度", "扣款", "扣了两次", "重复支付", "发票", "账单", "支付", "订阅", "invoice", "多扣"]
+        billing_kws = ["退款到账", "退款进度", "没到账", "扣款", "扣了两次", "重复支付", "发票", "账单", "支付", "订阅", "invoice", "多扣"]
         general_kws = ["订单", "物流", "快递", "配送", "会员", "积分", "咨询", "帮助"]
         order_kws = ["订单状态", "发货", "物流", "快递", "配送", "运单", "修改地址", "取消订单"]
-        after_sales_kws = ["退款", "退货", "换货", "破损", "少件", "错发", "漏发"]
+        # “退款进度/退款到账”属于账单状态查询，不能仅因出现“退款”就额外拉起售后 Agent。
+        after_sales_kws = ["申请退款", "我要退款", "退货", "换货", "破损", "少件", "错发", "漏发"]
 
         technical_hits = sum(1 for kw in technical_kws if kw in msg)
         billing_hits = sum(1 for kw in billing_kws if kw in msg)
@@ -1343,9 +1344,9 @@ class AgentOrchestrator:
         targets: List[AgentType] = []
 
         technical_kws = ["崩溃", "报错", "error", "crash", "无法登录", "登录失败", "500", "401"]
-        billing_kws = ["退款到账", "退款进度", "扣款", "扣了两次", "重复支付", "发票", "账单", "支付", "订阅", "invoice"]
+        billing_kws = ["退款到账", "退款进度", "没到账", "扣款", "扣了两次", "重复支付", "发票", "账单", "支付", "订阅", "invoice"]
         order_kws = ["订单状态", "发货", "物流", "快递", "配送", "修改地址", "取消订单"]
-        after_sales_kws = ["退款", "退货", "换货", "破损", "少件", "错发", "漏发"]
+        after_sales_kws = ["申请退款", "我要退款", "退货", "换货", "破损", "少件", "错发", "漏发"]
 
         if req.intent in (
             IntentCategory.TECHNICAL,

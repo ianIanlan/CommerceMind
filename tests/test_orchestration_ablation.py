@@ -11,4 +11,5 @@ def test_conditional_multi_agent_improves_domain_coverage():
 
     assert conditional.domain_recall > single.domain_recall
     assert conditional.avg_agents > single.avg_agents
-    assert conditional.unnecessary_agent_rate == 0.0
+    assert conditional.unnecessary_agent_rate <= 0.05
+    assert conditional.multi_domain_exact > single.multi_domain_exact

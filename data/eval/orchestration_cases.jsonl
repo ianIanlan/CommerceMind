@@ -1,0 +1,20 @@
+{"case_id":"single-order","message":"查询订单 ORD-10002 的物流","intent":"logistics","expected_agents":["order"]}
+{"case_id":"single-billing","message":"订单 ORD-10005 为什么扣了两次款","intent":"duplicate_payment","expected_agents":["billing"]}
+{"case_id":"single-tech","message":"登录时报 401","intent":"technical_login","expected_agents":["technical"]}
+{"case_id":"single-refund","message":"订单 ORD-10001 想退款","intent":"refund","expected_agents":["after_sales"]}
+{"case_id":"multi-tech-billing","message":"登录报错，而且订单被重复扣款","intent":"technical_login","expected_agents":["technical","billing"]}
+{"case_id":"multi-order-billing","message":"订单一直没发货，还扣了两次款","intent":"order_status","expected_agents":["order","billing"]}
+{"case_id":"multi-order-refund","message":"物流显示破损，我要退货退款","intent":"damaged_item","expected_agents":["order","after_sales"]}
+{"case_id":"multi-tech-order","message":"订单页面崩溃，看不到物流信息","intent":"technical_crash","expected_agents":["technical","order"]}
+{"case_id":"single-refund-status","message":"退款显示成功但银行卡还没到账","intent":"refund_status","expected_agents":["billing"]}
+{"case_id":"single-address","message":"订单还没发货，帮我修改地址","intent":"address_change","expected_agents":["order"]}
+{"case_id":"single-return","message":"尺码不合适，我想换货","intent":"return_exchange","expected_agents":["after_sales"]}
+{"case_id":"single-invoice","message":"订单完成后怎么开电子发票","intent":"invoice","expected_agents":["billing"]}
+{"case_id":"single-human","message":"不要机器人回答，转人工客服","intent":"human_handoff","expected_agents":["escalation"]}
+{"case_id":"multi-login-refund","message":"我登录失败，而且之前申请的退款也没到账","intent":"technical_login","expected_agents":["technical","billing"]}
+{"case_id":"multi-crash-return","message":"退货页面一直崩溃，商品尺寸也不合适","intent":"technical_crash","expected_agents":["technical","after_sales"]}
+{"case_id":"multi-logistics-refund","message":"快递一直没有更新，我想直接申请退款","intent":"logistics","expected_agents":["order","after_sales"]}
+{"case_id":"multi-address-payment","message":"我要修改订单地址，但支付一直失败","intent":"address_change","expected_agents":["order","billing"]}
+{"case_id":"multi-damage-billing","message":"商品破损，而且账单金额也不对","intent":"damaged_item","expected_agents":["after_sales","billing"]}
+{"case_id":"multi-order-invoice","message":"先查订单是否发货，再告诉我怎么开发票","intent":"order_status","expected_agents":["order","billing"]}
+{"case_id":"multi-error-payment","message":"结算页面报500，同时银行卡已经扣款","intent":"technical_crash","expected_agents":["technical","billing"]}

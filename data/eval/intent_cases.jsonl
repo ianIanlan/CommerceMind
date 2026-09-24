@@ -1,0 +1,30 @@
+{"case_id":"logistics_01","message":"查询订单 ORD-10002 的物流进度","expected_intent":"logistics","tags":["order"]}
+{"case_id":"logistics_02","message":"我的快递到哪里了","expected_intent":"logistics","tags":["order","paraphrase"]}
+{"case_id":"order_01","message":"订单 ORD-10001 现在是什么状态","expected_intent":"order_status","tags":["order"]}
+{"case_id":"order_02","message":"这个订单发货了吗","expected_intent":"order_status","tags":["order"]}
+{"case_id":"duplicate_01","message":"订单 ORD-10005 为什么扣了两次款","expected_intent":"duplicate_payment","tags":["billing"]}
+{"case_id":"duplicate_02","message":"同一笔订单出现了两笔支付","expected_intent":"duplicate_payment","tags":["billing","paraphrase"]}
+{"case_id":"refund_01","message":"订单 ORD-10001 不想要了，我要申请退款","expected_intent":"refund","tags":["after_sales"]}
+{"case_id":"refund_02","message":"帮我退钱","expected_intent":"refund","tags":["after_sales","short"]}
+{"case_id":"refund_status_01","message":"退款多久到账","expected_intent":"refund_status","tags":["billing"]}
+{"case_id":"refund_status_02","message":"退款进度到哪里了","expected_intent":"refund_status","tags":["billing"]}
+{"case_id":"return_01","message":"收到商品后我想换货","expected_intent":"return_exchange","tags":["after_sales"]}
+{"case_id":"return_02","message":"这个商品可以退货吗","expected_intent":"return_exchange","tags":["after_sales"]}
+{"case_id":"damage_01","message":"包裹打开后发现少件","expected_intent":"damaged_item","tags":["after_sales"]}
+{"case_id":"damage_02","message":"收到的耳机破损了","expected_intent":"damaged_item","tags":["after_sales"]}
+{"case_id":"cancel_01","message":"请帮我取消订单","expected_intent":"order_cancel","tags":["order"]}
+{"case_id":"cancel_02","message":"订单还没发货，我不要了","expected_intent":"order_cancel","tags":["order","implicit"]}
+{"case_id":"address_01","message":"订单地址填错了","expected_intent":"address_change","tags":["order"]}
+{"case_id":"address_02","message":"发货前帮我修改收货地址","expected_intent":"address_change","tags":["order"]}
+{"case_id":"invoice_01","message":"我要开电子发票","expected_intent":"invoice","tags":["billing"]}
+{"case_id":"payment_01","message":"付款一直失败怎么办","expected_intent":"payment_issue","tags":["billing"]}
+{"case_id":"login_01","message":"登录一直提示 401","expected_intent":"technical_login","tags":["technical"]}
+{"case_id":"login_02","message":"验证码正确但还是无法登录","expected_intent":"technical_login","tags":["technical"]}
+{"case_id":"crash_01","message":"应用打开就闪退","expected_intent":"technical_crash","tags":["technical"]}
+{"case_id":"crash_02","message":"页面报 500 错误","expected_intent":"technical_crash","tags":["technical"]}
+{"case_id":"security_01","message":"账户出现了异常登录","expected_intent":"account_security","tags":["security"]}
+{"case_id":"product_01","message":"这款背包是什么材质","expected_intent":"product_query","tags":["product"]}
+{"case_id":"human_01","message":"我要找人工客服","expected_intent":"human_handoff","tags":["escalation"]}
+{"case_id":"complaint_01","message":"你们服务太差了，我要投诉","expected_intent":"escalation","tags":["escalation"]}
+{"case_id":"greeting_01","message":"你好","expected_intent":"greeting","tags":["general"]}
+{"case_id":"general_01","message":"请问你能帮我做什么","expected_intent":"query","tags":["general"]}

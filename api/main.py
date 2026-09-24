@@ -117,7 +117,16 @@ async def lifespan(app: FastAPI):
             os.getenv("COMMERCE_DB_PATH", str(pathlib.Path(_ROOT) / "data" / "commerce.sqlite3"))
         )
     commerce_store.seed_demo_data()
-    _commerce_service = CommerceService(commerce_store)
+    payment_gateway = None
+    stripe_secret_key = os.getenv("STRIPE_SECRET_KEY", "").strip()
+    if stripe_secret_key:
+        from commerce.payment_gateway import StripePaymentGateway
+        payment_gateway = StripePaymentGateway(
+            stripe_secret_key,
+            base_url=os.getenv("STRIPE_BASE_URL", "https://api.stripe.com"),
+        )
+        logger.info("Stripe payment gateway enabled")
+    _commerce_service = CommerceService(commerce_store, payment_gateway=payment_gateway)
 
     # Agent 编排器
     _orchestrator = AgentOrchestrator(

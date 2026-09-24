@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Dict, List, Sequence
@@ -25,6 +26,11 @@ class OrchestrationVariant:
     domain_recall: float
     unnecessary_agent_rate: float
     avg_agents: float
+    exact_match_ci95: List[float]
+    micro_precision: float
+    micro_f1: float
+    single_domain_exact: float
+    multi_domain_exact: float
     errors: List[Dict]
 
 
@@ -74,14 +80,58 @@ class OrchestrationAblationRunner:
             domain_recall=round(recalled / max(expected_total, 1), 4),
             unnecessary_agent_rate=round(unnecessary / max(predicted_total, 1), 4),
             avg_agents=round(predicted_total / total, 3),
+            exact_match_ci95=[round(value, 4) for value in OrchestrationAblationRunner._wilson(exact, len(cases))],
+            micro_precision=round(recalled / max(predicted_total, 1), 4),
+            micro_f1=round(2 * recalled / max(expected_total + predicted_total, 1), 4),
+            single_domain_exact=OrchestrationAblationRunner._group_exact(predictions, cases, multi=False),
+            multi_domain_exact=OrchestrationAblationRunner._group_exact(predictions, cases, multi=True),
             errors=errors,
         )
+
+    @staticmethod
+    def _group_exact(
+        predictions: Sequence[List[str]], cases: Sequence[OrchestrationCase], multi: bool
+    ) -> float:
+        selected = [
+            (prediction, case)
+            for prediction, case in zip(predictions, cases)
+            if (len(case.expected_agents) > 1) is multi
+        ]
+        if not selected:
+            return 0.0
+        return round(
+            sum(set(prediction) == set(case.expected_agents) for prediction, case in selected) / len(selected),
+            4,
+        )
+
+    @staticmethod
+    def _wilson(successes: int, total: int, z: float = 1.96) -> tuple[float, float]:
+        if total == 0:
+            return 0.0, 0.0
+        proportion = successes / total
+        denominator = 1 + z * z / total
+        centre = (proportion + z * z / (2 * total)) / denominator
+        margin = z * math.sqrt(
+            proportion * (1 - proportion) / total + z * z / (4 * total * total)
+        ) / denominator
+        return max(0.0, centre - margin), min(1.0, centre + margin)
 
 
 def write_orchestration_report(results: List[OrchestrationVariant], json_path: Path, markdown_path: Path) -> None:
     json_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.write_text(json.dumps([asdict(item) for item in results], ensure_ascii=False, indent=2), encoding="utf-8")
-    lines = ["# Agent 编排消融实验", "", "| 方案 | 精确匹配 | 领域召回 | 多余 Agent 率 | 平均 Agent 数 |", "|---|---:|---:|---:|---:|"]
+    lines = [
+        "# Agent 编排消融实验", "",
+        "本实验只评价路由覆盖，不评价最终回答质量。置信区间为 exact match 的 Wilson 95% CI。", "",
+        "该数据集是用于开发和回归的合成集，路由规则已根据其中的错误样本调整；100% 不能解释为未知流量上的泛化准确率。", "",
+        "| 方案 | 精确匹配 (95% CI) | Micro-F1 | 领域召回 | 多余 Agent 率 | 单域/多域精确匹配 | 平均 Agent 数 |",
+        "|---|---:|---:|---:|---:|---:|---:|",
+    ]
     for item in results:
-        lines.append(f"| {item.name} | {item.exact_match:.2%} | {item.domain_recall:.2%} | {item.unnecessary_agent_rate:.2%} | {item.avg_agents:.2f} |")
+        lines.append(
+            f"| {item.name} | {item.exact_match:.2%} "
+            f"[{item.exact_match_ci95[0]:.2%}, {item.exact_match_ci95[1]:.2%}] | "
+            f"{item.micro_f1:.2%} | {item.domain_recall:.2%} | {item.unnecessary_agent_rate:.2%} | "
+            f"{item.single_domain_exact:.2%}/{item.multi_domain_exact:.2%} | {item.avg_agents:.2f} |"
+        )
     markdown_path.write_text("\n".join(lines) + "\n", encoding="utf-8")

@@ -1,0 +1,22 @@
+{"case_id":"refund-01","query":"普通商品签收以后几天能退","category":"after_sales","expected_policy_id":"refund-general"}
+{"case_id":"refund-02","query":"不喜欢了想退钱有什么期限","category":"after_sales","expected_policy_id":"refund-general"}
+{"case_id":"refund-03","query":"退款审核多久，钱什么时候回来","category":"after_sales","expected_policy_id":"refund-general"}
+{"case_id":"refund-04","query":"虚拟商品激活后还能退吗","category":"after_sales","expected_policy_id":"refund-general"}
+{"case_id":"order-01","query":"发货以后物流多久更新","category":"order","expected_policy_id":"order-logistics"}
+{"case_id":"order-02","query":"包裹七天还没有到怎么办","category":"order","expected_policy_id":"order-logistics"}
+{"case_id":"order-03","query":"东西寄出以后还能改地址吗","category":"order","expected_policy_id":"order-logistics"}
+{"case_id":"delivery-01","query":"标准配送要几个工作日","category":"order","expected_policy_id":"delivery"}
+{"case_id":"delivery-02","query":"偏远地区送货会多等多久","category":"order","expected_policy_id":"delivery"}
+{"case_id":"delivery-03","query":"订单多少钱免运费","category":"order","expected_policy_id":"delivery"}
+{"case_id":"payment-01","query":"同一个订单扣了两遍钱","category":"billing","expected_policy_id":"payment-review"}
+{"case_id":"payment-02","query":"重复扣款怎么核实","category":"billing","expected_policy_id":"payment-review"}
+{"case_id":"payment-03","query":"两笔一样金额的支付是不是重复支付","category":"billing","expected_policy_id":"payment-review"}
+{"case_id":"security-01","query":"登录提示 401 是什么原因","category":"technical","expected_policy_id":"account-security"}
+{"case_id":"security-02","query":"账号登不上去怎么重置密码","category":"technical","expected_policy_id":"account-security"}
+{"case_id":"security-03","query":"客服会问我要验证码吗","category":"technical","expected_policy_id":"account-security"}
+{"case_id":"member-01","query":"消费一块钱有多少积分","category":"general","expected_policy_id":"membership"}
+{"case_id":"member-02","query":"一百积分能抵多少钱","category":"general","expected_policy_id":"membership"}
+{"case_id":"member-03","query":"生日月份积分会翻倍吗","category":"general","expected_policy_id":"membership"}
+{"case_id":"unknown-01","query":"你们公司创始人是谁","category":"general","expected_policy_id":null}
+{"case_id":"unknown-02","query":"能推荐一部科幻电影吗","category":"general","expected_policy_id":null}
+{"case_id":"unknown-03","query":"明天上海天气怎么样","category":"general","expected_policy_id":null}
