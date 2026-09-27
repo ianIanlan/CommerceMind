@@ -126,6 +126,8 @@ class AgentResponse:
     tools_used:  List[str] = field(default_factory=list)
     tool_traces: List[Dict[str, Any]] = field(default_factory=list)
     pending_actions: List[Dict[str, Any]] = field(default_factory=list)
+    degraded: bool = False
+    degradation_reason: str = ""
 
 
 @dataclass
@@ -160,6 +162,7 @@ class OrchestratorResult:
     routing_confidence: float = 0.0
     pending_actions: List[Dict[str, Any]] = field(default_factory=list)
     stage_timings_ms: Dict[str, Any] = field(default_factory=dict)
+    degraded_agents: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -203,6 +206,7 @@ class BaseAgent:
         self._last_tools_used: List[str] = []
         self._last_tool_traces: List[Dict[str, Any]] = []
         self._last_pending_actions: List[Dict[str, Any]] = []
+        self._last_required_results: List[Dict[str, Any]] = []
         self._shared_tools: Dict[str, AgentToolSpec] = {}
         self._domain_tools: Dict[str, AgentToolSpec] = {}
 
@@ -223,11 +227,13 @@ class BaseAgent:
         self._last_tools_used = []
         self._last_tool_traces = []
         self._last_pending_actions = []
+        self._last_required_results = []
         try:
             if os.getenv("DISABLE_LLM", "false").lower() in {"1", "true", "yes"}:
                 content = await self._call_local_demo(req)
             else:
-                content = await self._call_llm(req)
+                timeout_s = max(0.1, _env_float("COMMERCEMIND_AGENT_TIMEOUT_S", 20.0))
+                content = await asyncio.wait_for(self._call_llm(req), timeout=timeout_s)
             ms = (time.monotonic() - t0) * 1000
             self.stats.success += 1
             self.stats.total_ms += ms
@@ -242,6 +248,21 @@ class BaseAgent:
                 tool_traces=list(self._last_tool_traces),
                 pending_actions=list(self._last_pending_actions),
             )
+        except asyncio.TimeoutError:
+            ms = (time.monotonic() - t0) * 1000
+            self.stats.total_ms += ms
+            logger.warning("%s Agent 超过总预算，使用确定性降级回答", self.agent_type.value)
+            return AgentResponse(
+                agent_type=self.agent_type,
+                content=self._budget_fallback(req),
+                success=True,
+                latency_ms=ms,
+                tools_used=list(self._last_tools_used),
+                tool_traces=list(self._last_tool_traces),
+                pending_actions=list(self._last_pending_actions),
+                degraded=True,
+                degradation_reason="agent_timeout",
+            )
         except Exception as ex:
             ms = (time.monotonic() - t0) * 1000
             self.stats.total_ms += ms
@@ -254,6 +275,7 @@ class BaseAgent:
                 tools_used=list(self._last_tools_used),
                 tool_traces=list(self._last_tool_traces),
                 pending_actions=list(self._last_pending_actions),
+                degradation_reason=type(ex).__name__,
             )
 
     async def _call_local_demo(self, req: Request) -> str:
@@ -433,6 +455,7 @@ class BaseAgent:
             # 模型调用随后即使超时，已完成的确定性工具证据也必须进入失败 Trace。
             self._last_tools_used = list(dict.fromkeys(tools_used))
             self._last_tool_traces = list(tool_traces)
+            self._last_required_results = list(required_results)
         for _ in range(3):
             request_kwargs: Dict[str, Any] = {
                 "model": self._model,
@@ -525,6 +548,34 @@ class BaseAgent:
         self._last_tool_traces = tool_traces
         self._last_pending_actions = pending_actions
         raise RuntimeError(f"{self.agent_type.value} 工具调用超过最大轮数")
+
+    def _budget_fallback(self, req: Request) -> str:
+        """Build a truthful response from deterministic facts after the LLM budget expires."""
+        facts = {item.get("tool"): item.get("result") for item in self._last_required_results}
+        if self.agent_type == AgentType.BILLING and "get_payment_records" in facts:
+            result = facts["get_payment_records"] or {}
+            data = result.get("data") or {}
+            payments = data.get("payments") or []
+            if result.get("success") and data.get("duplicate_candidate"):
+                return (
+                    f"模型响应超时，但已通过支付工具查到订单的 {len(payments)} 笔成功流水，"
+                    "系统将其标记为疑似重复扣款。该标记不是最终结论，也不会自动退款；"
+                    "请由支付渠道或人工继续核验。"
+                )
+            if result.get("success"):
+                return f"模型响应超时，但支付工具已查到 {len(payments)} 笔流水，暂未形成重复扣款结论。"
+        if self.agent_type == AgentType.TECHNICAL and "lookup_error_code" in facts:
+            result = facts["lookup_error_code"] or {}
+            steps = result.get("next_steps") or []
+            detail = "；".join(str(step) for step in steps[:3])
+            return f"模型响应超时。错误码 {result.get('error_code', '未知')} 表示{result.get('meaning', '待核验')}。建议：{detail}。"
+        if self.agent_type == AgentType.ORDER:
+            for name in ("get_logistics", "get_order"):
+                if name in facts:
+                    return f"模型响应超时，但已完成{name}事实查询；请稍后重试以获得完整说明。"
+        if self.agent_type == AgentType.AFTER_SALES and "check_return_eligibility" in facts:
+            return "模型响应超时，但已完成售后资格预检；系统未自动提交退款，请稍后重试查看完整结论。"
+        return "模型服务响应超时，本次没有执行任何高风险写操作。请稍后重试或转人工处理。"
 
     def _required_tool_calls(self, req: Request) -> List[tuple[str, Dict[str, Any]]]:
         """Return deterministic read-only evidence required for the current role.
@@ -1099,6 +1150,7 @@ class AgentOrchestrator:
             "tools_used": list(result.tools_used),
             "tool_calls": list(result.tool_traces),
             "escalated": result.escalated,
+            "degraded_agents": list(result.degraded_agents),
             "latency_ms": round(result.latency_ms, 1),
             "stage_timings_ms": dict(result.stage_timings_ms),
         }
@@ -1202,6 +1254,7 @@ class AgentOrchestrator:
             routing_reason=decision.reason,
             routing_confidence=decision.confidence,
             pending_actions=list(response.pending_actions),
+            degraded_agents=[response.agent_type.value] if response.degraded else [],
             stage_timings_ms={
                 "intent_recognition_internal": round(internal_intent_ms, 1),
                 "routing": round(routing_ms, 1),
@@ -1271,6 +1324,9 @@ class AgentOrchestrator:
             routing_reason=decision.reason,
             routing_confidence=decision.confidence,
             pending_actions=pending_actions,
+            degraded_agents=[
+                response.agent_type.value for response in valid_responses if response.degraded
+            ],
             stage_timings_ms={
                 "intent_recognition_internal": round(internal_intent_ms, 1),
                 "routing": round(routing_ms, 1),

@@ -16,6 +16,7 @@ from agents.agent_orchestrator import (
     build_shared_rag_tools,
 )
 from core.intent_recognizer import IntentCategory, UrgencyLevel
+from agents.tools import make_tool
 
 
 class FakeClient:
@@ -344,3 +345,42 @@ def test_specialist_fallback_preserves_failed_agent_tool_evidence():
     assert [trace["tool_name"] for trace in response.tool_traces] == [
         "lookup_error_code", "inspect_request_context",
     ]
+
+
+def test_agent_timeout_returns_prefetched_facts_without_general_retry(monkeypatch):
+    monkeypatch.setenv("COMMERCEMIND_AGENT_TIMEOUT_S", "0.1")
+    monkeypatch.setenv("COMMERCEMIND_REQUIRED_TOOL_POLICY", "true")
+
+    class SlowClient:
+        class Messages:
+            async def create(self, **kwargs):
+                await asyncio.sleep(1)
+
+        messages = Messages()
+
+    agent = BillingAgent(SlowClient(), "test-model")
+    agent.set_domain_tools({
+        "get_payment_records": make_tool(
+            "get_payment_records",
+            "test",
+            {"order_id": {"type": "string"}},
+            lambda req, args: {
+                "success": True,
+                "data": {"payments": [{}, {}], "duplicate_candidate": True},
+            },
+            required=["order_id"],
+        ),
+    })
+    req = make_request(
+        intent=IntentCategory.DUPLICATE_PAYMENT,
+        entities={"order_id": ["ORD-10005"]},
+    )
+
+    response = asyncio.run(agent.handle(req))
+
+    assert response.success is True
+    assert response.degraded is True
+    assert response.degradation_reason == "agent_timeout"
+    assert response.tools_used == ["get_payment_records"]
+    assert "2 笔成功流水" in response.content
+    assert response.tool_traces[0]["policy_required"] is True

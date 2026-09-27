@@ -218,6 +218,9 @@ LLM Key；设置 `DISABLE_LLM=false` 后即可在本地基础设施模式下使�
 模型自选工具与代码级必需只读工具策略的10次对照见
 [必需工具策略实验 v1](docs/required_tool_policy_experiment_v1.md)。
 
+远程模型长尾的 Agent 总预算、事实保留降级和1秒故障注入结果见
+[Agent 时间预算实验 v1](docs/agent_timeout_budget_v1.md)。
+
 RAG 检索消融实验：
 
 ```bash

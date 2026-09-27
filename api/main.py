@@ -293,6 +293,7 @@ class ChatResponse(BaseModel):
     pending_actions: List[Dict[str, Any]] = Field(default_factory=list)
     citations: List[Dict[str, Any]] = Field(default_factory=list)
     stage_timings_ms: Dict[str, Any] = Field(default_factory=dict)
+    degraded_agents: List[str] = Field(default_factory=list)
 
 
 class ToolTraceResponse(BaseModel):
@@ -438,6 +439,7 @@ async def chat(req: ChatRequest, authorization: Optional[str] = Header(default=N
         guard={"changed": guard_result.changed, "violations": guard_result.violations},
         pending_actions=result.pending_actions,
         stage_timings_ms=stage_timings_ms,
+        degraded_agents=result.degraded_agents,
     )
     stage_timings_ms["postprocess"] = round((time.monotonic() - postprocess_t0) * 1000, 1)
     total_ms = (time.monotonic() - request_t0) * 1000
@@ -469,6 +471,7 @@ async def chat(req: ChatRequest, authorization: Optional[str] = Header(default=N
         pending_actions=result.pending_actions,
         citations=citations,
         stage_timings_ms=stage_timings_ms,
+        degraded_agents=result.degraded_agents,
     )
 
 

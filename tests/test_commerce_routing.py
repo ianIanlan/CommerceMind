@@ -128,6 +128,12 @@ def test_order_id_entity_supports_demo_order_format():
     assert entities["order_id"] == ["ORD-10005"]
 
 
+def test_error_code_entity_supports_chinese_adjacent_digits():
+    recognizer = IntentRecognizer.__new__(IntentRecognizer)
+    entities = recognizer._extract_entities("登录页面报401，而且稍后又显示 HTTP 500")
+    assert entities["error_code"] == ["401", "500"]
+
+
 def test_agent_exposes_pending_action_as_structured_result():
     class ToolUseBlock:
         type = "tool_use"
