@@ -208,6 +208,10 @@ LLM Key；设置 `DISABLE_LLM=false` 后即可在本地基础设施模式下使�
 .runtime-venv/bin/python scripts/run_interview_evidence.py --base-url http://localhost:8000
 ```
 
+阶段级 Trace、真实性能瓶颈和首轮优化前后对照见
+[阶段级性能优化 v1](docs/performance_optimization_v1.md)。`/chat` 响应及 `/trace/tool/{request_id}`
+会返回 `stage_timings_ms`，用于区分意图、Agent、Composer 与存储耗时。
+
 RAG 检索消融实验：
 
 ```bash

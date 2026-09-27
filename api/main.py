@@ -9,6 +9,7 @@ import logging
 import os
 import pathlib
 import sys
+import time
 import uuid
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
@@ -291,6 +292,7 @@ class ChatResponse(BaseModel):
     safety_violations: List[str] = Field(default_factory=list)
     pending_actions: List[Dict[str, Any]] = Field(default_factory=list)
     citations: List[Dict[str, Any]] = Field(default_factory=list)
+    stage_timings_ms: Dict[str, Any] = Field(default_factory=dict)
 
 
 class ToolTraceResponse(BaseModel):
@@ -345,6 +347,7 @@ async def chat(req: ChatRequest, authorization: Optional[str] = Header(default=N
     主对话接口。完整流程：
       记忆读取 → 意图识别 → Agent 路由 → 执行 → 记忆写入
     """
+    request_t0 = time.monotonic()
     if _orchestrator is None or _memory is None:
         raise HTTPException(503, "服务未就绪")
 
@@ -358,7 +361,9 @@ async def chat(req: ChatRequest, authorization: Optional[str] = Header(default=N
     conv_id = req.conv_id or str(uuid.uuid4())
 
     # 1. 读取记忆上下文
+    memory_read_t0 = time.monotonic()
     mem_ctx = await _memory.get_context(user_id, conv_id, query=req.message)
+    memory_read_ms = (time.monotonic() - memory_read_t0) * 1000
 
     # 2. 构建编排请求（含对话历史，用于意图识别上下文）
     history = [
@@ -366,8 +371,12 @@ async def chat(req: ChatRequest, authorization: Optional[str] = Header(default=N
         for m in mem_ctx.recent_messages[-5:]
     ] if mem_ctx.recent_messages else None
 
+    intent_t0 = time.monotonic()
     intent_result = await _orchestrator.recognize_intent(req.message, history=history)
+    intent_ms = (time.monotonic() - intent_t0) * 1000
+    context_t0 = time.monotonic()
     full_context = mem_ctx.to_prompt_text()
+    context_build_ms = (time.monotonic() - context_t0) * 1000
 
     orch_req = OrcReq(
         message=req.message,
@@ -383,16 +392,22 @@ async def chat(req: ChatRequest, authorization: Optional[str] = Header(default=N
     )
 
     # 3. 执行
+    orchestration_t0 = time.monotonic()
     result = await _orchestrator.run(orch_req)
+    orchestration_ms = (time.monotonic() - orchestration_t0) * 1000
 
     # 4. 高风险回复的确定性审核。Prompt 是软约束，资金/隐私边界必须代码兜底。
     from commerce.guard import CommerceResponseGuard
+    guard_t0 = time.monotonic()
     guard_result = CommerceResponseGuard().review(result.response, result.tools_used)
     result.response = guard_result.content
+    guard_ms = (time.monotonic() - guard_t0) * 1000
 
     # 5. 写入记忆
+    memory_write_t0 = time.monotonic()
     await _memory.add_message(user_id, conv_id, MsgRole.USER, req.message)
     await _memory.add_message(user_id, conv_id, MsgRole.ASSISTANT, result.response)
+    memory_write_ms = (time.monotonic() - memory_write_t0) * 1000
 
     # 6. 异步更新用户画像（不阻塞响应）
     if os.getenv("PROFILE_AUTO_UPDATE", "true").lower() in {"1", "true", "yes", "on"}:
@@ -407,12 +422,28 @@ async def chat(req: ChatRequest, authorization: Optional[str] = Header(default=N
                 citation_ids.add(key)
                 citations.append(citation)
 
+    postprocess_t0 = time.monotonic()
+    stage_timings_ms = {
+        "memory_read": round(memory_read_ms, 1),
+        "intent_recognition": round(intent_ms, 1),
+        "context_build": round(context_build_ms, 1),
+        "orchestration": round(orchestration_ms, 1),
+        **result.stage_timings_ms,
+        "guard": round(guard_ms, 1),
+        "memory_write": round(memory_write_ms, 1),
+    }
     _orchestrator.enrich_trace(
         result.request_id,
         citations=citations,
         guard={"changed": guard_result.changed, "violations": guard_result.violations},
         pending_actions=result.pending_actions,
+        stage_timings_ms=stage_timings_ms,
     )
+    stage_timings_ms["postprocess"] = round((time.monotonic() - postprocess_t0) * 1000, 1)
+    total_ms = (time.monotonic() - request_t0) * 1000
+    stage_timings_ms["total"] = round(total_ms, 1)
+    # postprocess 与 total 在 enrich 后才能得到，补充写回同一条 Trace。
+    _orchestrator.enrich_trace(result.request_id, stage_timings_ms=stage_timings_ms)
 
     return ChatResponse(
         conv_id=conv_id,
@@ -428,7 +459,7 @@ async def chat(req: ChatRequest, authorization: Optional[str] = Header(default=N
         routing_reason=result.routing_reason,
         routing_confidence=result.routing_confidence,
         escalated=result.escalated,
-        latency_ms=round(result.latency_ms, 1),
+        latency_ms=round(total_ms, 1),
         # 只有实际检索到可引用文档才标记为使用知识库；单纯调用失败不算。
         knowledge_used=bool(citations),
         entities=intent_result.entities,
@@ -437,6 +468,7 @@ async def chat(req: ChatRequest, authorization: Optional[str] = Header(default=N
         safety_violations=guard_result.violations,
         pending_actions=result.pending_actions,
         citations=citations,
+        stage_timings_ms=stage_timings_ms,
     )
 
 

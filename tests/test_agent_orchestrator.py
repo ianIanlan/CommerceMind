@@ -101,6 +101,21 @@ def test_composer_fallback_preserves_primary_and_supporting_results():
     assert "两笔扣款" in content
 
 
+def test_deterministic_composer_avoids_an_extra_llm_call(monkeypatch):
+    monkeypatch.setenv("COMMERCEMIND_COMPOSER_MODE", "deterministic")
+    client = FakeClient(error=AssertionError("deterministic mode must not call the LLM"))
+    composer = ResponseComposer(client, "test-model")
+    responses = [
+        AgentResponse(AgentType.BILLING, "已核验支付记录。", True),
+        AgentResponse(AgentType.TECHNICAL, "请检查登录 Token。", True),
+    ]
+
+    content = asyncio.run(composer.compose(make_request(), responses))
+
+    assert content == "已核验支付记录。\n\n补充说明：\n请检查登录 Token。"
+    assert client.calls == []
+
+
 def test_composer_rejects_internal_reasoning_leak():
     leaked = SimpleNamespace(content=[SimpleNamespace(
         type="text",

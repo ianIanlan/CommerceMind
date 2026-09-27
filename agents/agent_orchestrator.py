@@ -159,6 +159,7 @@ class OrchestratorResult:
     routing_reason: str = ""
     routing_confidence: float = 0.0
     pending_actions: List[Dict[str, Any]] = field(default_factory=list)
+    stage_timings_ms: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -820,6 +821,8 @@ class ResponseComposer:
             return "抱歉，所有 Agent 均处理失败。"
         if len(successful) == 1:
             return successful[0].content
+        if os.getenv("COMMERCEMIND_COMPOSER_MODE", "llm").strip().lower() == "deterministic":
+            return self._deterministic_merge(successful)
 
         evidence = "\n\n".join(
             f"[{response.agent_type.value} Agent 输出]\n{response.content}"
@@ -854,9 +857,14 @@ class ResponseComposer:
             logger.warning("Response Composer 失败，使用确定性合并: %s", ex)
 
         # 汇总节点不可用时保留主次标签，避免丢失某个专业 Agent 的结论。
+        return self._deterministic_merge(successful)
+
+    @staticmethod
+    def _deterministic_merge(responses: List[AgentResponse]) -> str:
+        """低延迟合并：保留主 Agent 原文，并明确标记辅助领域补充。"""
         return "\n\n".join(
             f"{response.content}" if index == 0 else f"补充说明：\n{response.content}"
-            for index, response in enumerate(successful)
+            for index, response in enumerate(responses)
         )
 
     @staticmethod
@@ -1007,6 +1015,7 @@ class AgentOrchestrator:
             "tool_calls": list(result.tool_traces),
             "escalated": result.escalated,
             "latency_ms": round(result.latency_ms, 1),
+            "stage_timings_ms": dict(result.stage_timings_ms),
         }
         self._recent_tool_traces.append(trace)
 
@@ -1039,8 +1048,11 @@ class AgentOrchestrator:
         t0 = time.monotonic()
 
         # 1. 意图识别（如果调用方已识别则跳过）
+        internal_intent_ms = 0.0
         if req.intent is None:
+            intent_t0 = time.monotonic()
             intent_result = await self._intent_recognizer.recognize(req.message, history=req.history)
+            internal_intent_ms = (time.monotonic() - intent_t0) * 1000
             req.intent  = intent_result.intent
             req.intent_group = intent_result.intent_group
             req.urgency = intent_result.urgency
@@ -1063,12 +1075,22 @@ class AgentOrchestrator:
             return result
 
         # 复杂问题自动并行协作，例如同一句同时涉及登录故障和扣款/退款。
+        routing_t0 = time.monotonic()
         decision = self._route_decision(req)
+        routing_ms = (time.monotonic() - routing_t0) * 1000
         if decision.multi_agent:
-            return await self.run_parallel(req, decision)
+            return await self.run_parallel(
+                req,
+                decision,
+                routing_ms=routing_ms,
+                internal_intent_ms=internal_intent_ms,
+                total_started=t0,
+            )
 
         # 2. 执行主 Agent（含降级）
+        execute_t0 = time.monotonic()
         response = await self._execute(req, decision.primary_agent)
+        agent_wall_ms = (time.monotonic() - execute_t0) * 1000
 
         # 4. 升级检查
         escalated = False
@@ -1095,22 +1117,41 @@ class AgentOrchestrator:
             routing_reason=decision.reason,
             routing_confidence=decision.confidence,
             pending_actions=list(response.pending_actions),
+            stage_timings_ms={
+                "intent_recognition_internal": round(internal_intent_ms, 1),
+                "routing": round(routing_ms, 1),
+                "agents_parallel_wall": round(agent_wall_ms, 1),
+                "composer": 0.0,
+                "agent_individual": {response.agent_type.value: round(response.latency_ms, 1)},
+            },
         )
         self._record_tool_trace(result)
         return result
 
-    async def run_parallel(self, req: Request, decision: RoutingDecision) -> OrchestratorResult:
+    async def run_parallel(
+        self,
+        req: Request,
+        decision: RoutingDecision,
+        *,
+        routing_ms: float = 0.0,
+        internal_intent_ms: float = 0.0,
+        total_started: Optional[float] = None,
+    ) -> OrchestratorResult:
         """
         并行派发给多个 Agent，合并结果。
         适用于复杂问题（如同时涉及技术和账单）。
         """
-        t0 = time.monotonic()
+        t0 = total_started if total_started is not None else time.monotonic()
         agent_types = decision.agent_types
         tasks = [self._execute(req, at) for at in agent_types]
+        agents_t0 = time.monotonic()
         responses = await asyncio.gather(*tasks, return_exceptions=True)
+        agents_wall_ms = (time.monotonic() - agents_t0) * 1000
 
         valid_responses = [r for r in responses if isinstance(r, AgentResponse)]
+        composer_t0 = time.monotonic()
         combined = await self._composer.compose(req, valid_responses)
+        composer_ms = (time.monotonic() - composer_t0) * 1000
         escalated = any(isinstance(r, AgentResponse) and r.escalate for r in responses)
         tools_used = list(dict.fromkeys(
             tool_name
@@ -1145,6 +1186,16 @@ class AgentOrchestrator:
             routing_reason=decision.reason,
             routing_confidence=decision.confidence,
             pending_actions=pending_actions,
+            stage_timings_ms={
+                "intent_recognition_internal": round(internal_intent_ms, 1),
+                "routing": round(routing_ms, 1),
+                "agents_parallel_wall": round(agents_wall_ms, 1),
+                "composer": round(composer_ms, 1),
+                "agent_individual": {
+                    response.agent_type.value: round(response.latency_ms, 1)
+                    for response in valid_responses
+                },
+            },
         )
         self._record_tool_trace(result)
         return result

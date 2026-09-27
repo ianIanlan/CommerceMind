@@ -21,6 +21,8 @@ data/eval/baseline.json
 !data/demo_docs/**
 logs/
 outputs/
+output/
+tmp/
 
 # IDE
 .idea/

@@ -248,11 +248,32 @@ class IntentRecognizer:
 
         t0 = time.monotonic()
 
+        pat = self._pattern_recognize(message)
+        # “转人工/人工客服”等属于低歧义控制指令。等待 LLM 不会改善执行决策，
+        # 反而会让最需要快速响应的升级请求增加数秒延迟。
+        fast_path_enabled = os.getenv("INTENT_PATTERN_FAST_PATH", "true").lower() in {"1", "true", "yes"}
+        if (
+            fast_path_enabled
+            and pat.get("intent") == IntentCategory.HUMAN_HANDOFF
+            and float(pat.get("confidence", 0.0) or 0.0) >= 0.5
+        ):
+            result = IntentResult(
+                intent=IntentCategory.HUMAN_HANDOFF,
+                confidence=float(pat["confidence"]),
+                urgency=self._urgency(message, IntentCategory.HUMAN_HANDOFF),
+                intent_group=self._intent_group(IntentCategory.HUMAN_HANDOFF),
+                entities=self._extract_entities(message),
+                reasoning="明确人工客服指令，使用确定性快速路径",
+                latency_ms=(time.monotonic() - t0) * 1000,
+                source_scores={"llm": 0.0, "embedding": 0.0, "pattern": float(pat["confidence"]), "fast_path": 1.0},
+            )
+            self._cache[key] = result
+            return result
+
         # LLM 和 Embedding 并行（Embedding 不可用时跳过）
         llm_disabled = os.getenv("DISABLE_LLM", "false").lower() in {"1", "true", "yes"}
         llm_task = None if llm_disabled else asyncio.create_task(self._llm_recognize(message, history))
         emb_task = asyncio.create_task(self._embedding_recognize(message)) if self._embedding_enabled else None
-        pat      = self._pattern_recognize(message)
 
         if emb_task:
             if llm_task:

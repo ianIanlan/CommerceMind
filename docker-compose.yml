@@ -109,6 +109,9 @@ services:
       # Docker 演示默认控制 LLM 调用放大；需要做改写/画像实验时可在 .env.local 开启。
       - RAG_QUERY_REWRITE_ENABLED=false
       - PROFILE_AUTO_UPDATE=false
+      # 复合请求默认使用确定性合并，避免额外一次 LLM 调用；可改为 llm 做质量对照。
+      - COMMERCEMIND_COMPOSER_MODE=${COMMERCEMIND_COMPOSER_MODE:-deterministic}
+      - INTENT_PATTERN_FAST_PATH=${INTENT_PATTERN_FAST_PATH:-true}
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
       - CHROMA_PERSIST_DIRECTORY=/app/data/chroma

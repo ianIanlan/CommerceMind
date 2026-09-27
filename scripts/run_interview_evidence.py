@@ -44,6 +44,7 @@ class EvidenceRunner:
             "escalated": payload.get("escalated"),
             "pending_action_count": len(payload.get("pending_actions", [])),
             "safety_violations": payload.get("safety_violations", []),
+            "stage_timings_ms": payload.get("stage_timings_ms", {}),
         }
         return EvidenceResult(
             scenario, not failures, round((time.monotonic() - started) * 1000, 1), evidence, failures

@@ -14,6 +14,15 @@ def test_guard_blocks_sensitive_data_request():
     assert "请不要提供" in result.content
 
 
+def test_guard_allows_warning_not_to_share_sensitive_data():
+    result = CommerceResponseGuard().review(
+        "请不要发送密码、短信验证码或完整银行卡号。", []
+    )
+
+    assert result.changed is False
+    assert result.violations == []
+
+
 def test_guard_allows_verified_query_claim():
     result = CommerceResponseGuard().review(
         "已查询订单 ORD-10001，当前状态为待发货。", ["get_order"]

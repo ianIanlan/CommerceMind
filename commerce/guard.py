@@ -41,7 +41,21 @@ class CommerceResponseGuard:
         text = (content or "").strip()
         violations: List[str] = []
 
-        if any(secret in text for secret in self._SENSITIVE_REQUESTS):
+        # 先移除“请不要/切勿发送验证码”这类安全提醒，再检查剩余文本是否在索取敏感数据。
+        request_text = re.sub(
+            r"(?:请)?(?:不要|勿|切勿)(?:提供|发送|输入|告诉)[^。！？]*[。！？]?",
+            "",
+            text,
+        )
+        requests_sensitive_data = any(
+            secret in request_text
+            and (
+                re.search(rf"(?:请|需要|必须|把|将).{{0,8}}(?:提供|发送|输入|告诉).{{0,12}}{re.escape(secret)}", request_text)
+                or re.search(rf"(?:提供|发送|输入|告诉).{{0,8}}{re.escape(secret)}", request_text)
+            )
+            for secret in self._SENSITIVE_REQUESTS
+        )
+        if requests_sensitive_data:
             return GuardResult(
                 content=(
                     "为保护账户和资金安全，请不要提供密码、短信验证码或完整银行卡号。"
