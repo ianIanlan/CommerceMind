@@ -251,6 +251,7 @@ class BaseAgent:
                 content="抱歉，处理您的请求时出现问题，请稍后重试。",
                 success=False,
                 latency_ms=ms,
+                tools_used=list(self._last_tools_used),
                 tool_traces=list(self._last_tool_traces),
                 pending_actions=list(self._last_pending_actions),
             )
@@ -380,6 +381,58 @@ class BaseAgent:
         tools_used: List[str] = []
         tool_traces: List[Dict[str, Any]] = []
         pending_actions: List[Dict[str, Any]] = []
+
+        # 对高确定性只读事实执行代码级必需工具策略。模型仍负责解释结果，
+        # 但不能因为随机工具选择而跳过订单/支付等关键事实查询。
+        required_results = []
+        if os.getenv("COMMERCEMIND_REQUIRED_TOOL_POLICY", "true").lower() in {"1", "true", "yes"}:
+            for name, args in self._required_tool_calls(req):
+                spec = tools.get(name)
+                if spec is None:
+                    continue
+                tool_t0 = time.monotonic()
+                call_success = True
+                result_success: Optional[bool] = None
+                error_text = ""
+                try:
+                    self._validate_tool_input(spec, args)
+                    result = spec.handler(req, args)
+                    if inspect.isawaitable(result):
+                        result = await result
+                    tools_used.append(name)
+                    if isinstance(result, dict) and "success" in result:
+                        result_success = bool(result.get("success"))
+                except Exception as ex:
+                    call_success = False
+                    error_text = str(ex)
+                    result = {"success": False, "error": error_text}
+                tool_traces.append({
+                    "agent_type": self.agent_type.value,
+                    "tool_name": name,
+                    "tool_use_id": "policy_prefetch",
+                    "input": self._trace_safe_input(name, args),
+                    "success": call_success,
+                    "result_success": result_success,
+                    "latency_ms": round((time.monotonic() - tool_t0) * 1000, 1),
+                    "cached": False,
+                    "reranked": False,
+                    "error": error_text,
+                    "knowledge_sources": [],
+                    "policy_required": True,
+                })
+                required_results.append({"tool": name, "arguments": args, "result": result})
+        if required_results:
+            messages.append({
+                "role": "user",
+                "content": "[代码策略已查询的必要业务事实]\n" + json.dumps(required_results, ensure_ascii=False),
+            })
+            messages.append({
+                "role": "assistant",
+                "content": "好的，我会优先依据这些已校验的工具事实回答，不重复猜测。",
+            })
+            # 模型调用随后即使超时，已完成的确定性工具证据也必须进入失败 Trace。
+            self._last_tools_used = list(dict.fromkeys(tools_used))
+            self._last_tool_traces = list(tool_traces)
         for _ in range(3):
             request_kwargs: Dict[str, Any] = {
                 "model": self._model,
@@ -400,7 +453,7 @@ class BaseAgent:
             resp = await self._client.messages.create(**request_kwargs)
             tool_uses = [block for block in (resp.content or []) if self._block_type(block) == "tool_use"]
             if not tool_uses:
-                self._last_tools_used = tools_used
+                self._last_tools_used = list(dict.fromkeys(tools_used))
                 self._last_tool_traces = tool_traces
                 self._last_pending_actions = pending_actions
                 return extract_text_content(resp.content)
@@ -468,10 +521,42 @@ class BaseAgent:
                 })
             messages.append({"role": "user", "content": tool_results})
 
-        self._last_tools_used = tools_used
+        self._last_tools_used = list(dict.fromkeys(tools_used))
         self._last_tool_traces = tool_traces
         self._last_pending_actions = pending_actions
         raise RuntimeError(f"{self.agent_type.value} 工具调用超过最大轮数")
+
+    def _required_tool_calls(self, req: Request) -> List[tuple[str, Dict[str, Any]]]:
+        """Return deterministic read-only evidence required for the current role.
+
+        Write tools are deliberately excluded: required evidence may be prefetched,
+        but user-facing state changes must still follow explicit confirmation flows.
+        """
+        order_ids = (req.entities or {}).get("order_id", [])
+        order_id = order_ids[0] if order_ids else ""
+        intent = req.intent
+        calls: List[tuple[str, Dict[str, Any]]] = []
+        if self.agent_type == AgentType.BILLING and order_id:
+            if intent in (IntentCategory.DUPLICATE_PAYMENT, IntentCategory.PAYMENT_ISSUE):
+                calls.append(("get_payment_records", {"order_id": order_id}))
+            elif intent == IntentCategory.REFUND_STATUS:
+                calls.append(("get_refund_status", {"order_id": order_id}))
+        elif self.agent_type == AgentType.ORDER and order_id:
+            if intent == IntentCategory.LOGISTICS:
+                calls.extend([
+                    ("get_order", {"order_id": order_id}),
+                    ("get_logistics", {"order_id": order_id}),
+                ])
+            elif intent == IntentCategory.ORDER_STATUS:
+                calls.append(("get_order", {"order_id": order_id}))
+        elif self.agent_type == AgentType.AFTER_SALES and order_id:
+            if intent in (IntentCategory.REFUND, IntentCategory.RETURN_EXCHANGE):
+                calls.append(("check_return_eligibility", {"order_id": order_id}))
+        elif self.agent_type == AgentType.TECHNICAL:
+            error_codes = (req.entities or {}).get("error_code", [])
+            if error_codes:
+                calls.append(("lookup_error_code", {"error_code": error_codes[0]}))
+        return calls
 
     @staticmethod
     def _knowledge_sources(result: Any) -> List[Dict[str, Any]]:
@@ -1470,9 +1555,17 @@ class AgentOrchestrator:
         # 专属 Agent 失败时降级到 GeneralAgent
         if not response.success and agent_type not in (AgentType.GENERAL, AgentType.ESCALATION):
             logger.warning(f"{agent_type.value} 失败，降级到 GeneralAgent")
+            failed_response = response
             fallback = self._best_agent(AgentType.GENERAL)
             if fallback:
                 response = await fallback.handle(req)
+                response.tools_used = list(dict.fromkeys(
+                    [*failed_response.tools_used, *response.tools_used]
+                ))
+                response.tool_traces = [*failed_response.tool_traces, *response.tool_traces]
+                response.pending_actions = [
+                    *failed_response.pending_actions, *response.pending_actions,
+                ]
 
         return response
 

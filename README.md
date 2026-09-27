@@ -215,6 +215,9 @@ LLM Key；设置 `DISABLE_LLM=false` 后即可在本地基础设施模式下使�
 确定性合并与 LLM 合并各 10 次的延迟、流程断言和误报分析见
 [Composer 对照实验 v1](docs/composer_ablation_v1.md)。
 
+模型自选工具与代码级必需只读工具策略的10次对照见
+[必需工具策略实验 v1](docs/required_tool_policy_experiment_v1.md)。
+
 RAG 检索消融实验：
 
 ```bash

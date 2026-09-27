@@ -165,4 +165,6 @@ def test_agent_exposes_pending_action_as_structured_result():
     assert response.success is True
     assert response.pending_actions[0]["status"] == "awaiting_confirmation"
     assert response.pending_actions[0]["action_id"].startswith("act_")
-    assert response.tool_traces[0]["tool_name"] == "prepare_refund_request"
+    assert any(trace["tool_name"] == "prepare_refund_request" for trace in response.tool_traces)
+    assert response.tool_traces[0]["tool_name"] == "check_return_eligibility"
+    assert response.tool_traces[0]["policy_required"] is True

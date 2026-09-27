@@ -288,3 +288,59 @@ def test_optional_handoff_language_does_not_mark_request_as_escalated():
 
     assert agent._needs_escalation("如仍有问题，我可以为你转人工核实。") is False
     assert agent._needs_escalation("该问题需要转人工处理。") is True
+
+
+def test_required_tool_policy_maps_intent_to_read_only_evidence():
+    billing = BillingAgent(FakeClient(), "test-model")
+    req = make_request(
+        intent=IntentCategory.DUPLICATE_PAYMENT,
+        entities={"order_id": ["ORD-10005"]},
+    )
+
+    calls = billing._required_tool_calls(req)
+
+    assert calls == [("get_payment_records", {"order_id": "ORD-10005"})]
+    assert all(not name.startswith("prepare_") for name, _ in calls)
+
+
+def test_required_tool_policy_never_guesses_missing_order_id():
+    billing = BillingAgent(FakeClient(), "test-model")
+    req = make_request(intent=IntentCategory.DUPLICATE_PAYMENT, entities={})
+
+    assert billing._required_tool_calls(req) == []
+
+
+def test_specialist_fallback_preserves_failed_agent_tool_evidence():
+    orchestrator = AgentOrchestrator.__new__(AgentOrchestrator)
+
+    class FailedAgent:
+        async def handle(self, req):
+            return AgentResponse(
+                AgentType.TECHNICAL,
+                "技术模型超时",
+                False,
+                tools_used=["lookup_error_code"],
+                tool_traces=[{"tool_name": "lookup_error_code", "policy_required": True}],
+            )
+
+    class FallbackAgent:
+        async def handle(self, req):
+            return AgentResponse(
+                AgentType.GENERAL,
+                "已降级处理",
+                True,
+                tools_used=["inspect_request_context"],
+                tool_traces=[{"tool_name": "inspect_request_context"}],
+            )
+
+    orchestrator._best_agent = lambda agent_type: (
+        FailedAgent() if agent_type is AgentType.TECHNICAL else FallbackAgent()
+    )
+
+    response = asyncio.run(orchestrator._execute(make_request(), AgentType.TECHNICAL))
+
+    assert response.success is True
+    assert response.tools_used == ["lookup_error_code", "inspect_request_context"]
+    assert [trace["tool_name"] for trace in response.tool_traces] == [
+        "lookup_error_code", "inspect_request_context",
+    ]
