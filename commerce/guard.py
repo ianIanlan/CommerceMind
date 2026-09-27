@@ -32,7 +32,8 @@ class CommerceResponseGuard:
     )
 
     _UNVERIFIED_ACTIONS = (
-        (re.compile(r"(?:已经|已)(?:为您)?(?:完成)?退款(?:成功)?"), "UNVERIFIED_REFUND_CLAIM", "尚未执行退款；退款需要先完成资格预检并由用户确认。"),
+        # 只匹配完成式承诺，不匹配“状态：成功/失败/处理中/已退款”等状态枚举。
+        (re.compile(r"(?:已经(?:为您)?(?:完成)?退款(?:成功)?|已为您(?:完成)?退款(?:成功)?|已完成退款(?:成功)?|退款已(?:完成|成功))"), "UNVERIFIED_REFUND_CLAIM", "尚未执行退款；退款需要先完成资格预检并由用户确认。"),
         (re.compile(r"(?:已经|已)(?:为您)?取消订单"), "UNVERIFIED_CANCEL_CLAIM", "尚未执行取消订单；请先核验订单状态并确认操作。"),
         (re.compile(r"(?:已经|已)(?:为您)?修改(?:了)?(?:收货)?地址"), "UNVERIFIED_ADDRESS_CLAIM", "尚未执行地址修改；请先核验订单状态并确认操作。"),
     )

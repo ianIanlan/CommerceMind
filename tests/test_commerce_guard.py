@@ -23,6 +23,15 @@ def test_guard_allows_warning_not_to_share_sensitive_data():
     assert result.violations == []
 
 
+def test_guard_allows_refund_status_enumeration():
+    result = CommerceResponseGuard().review(
+        "请查看记录状态：成功、失败、处理中、已退款或退款中。", []
+    )
+
+    assert result.changed is False
+    assert result.violations == []
+
+
 def test_guard_allows_verified_query_claim():
     result = CommerceResponseGuard().review(
         "已查询订单 ORD-10001，当前状态为待发货。", ["get_order"]

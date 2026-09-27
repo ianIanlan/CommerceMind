@@ -212,6 +212,9 @@ LLM Key；设置 `DISABLE_LLM=false` 后即可在本地基础设施模式下使�
 [阶段级性能优化 v1](docs/performance_optimization_v1.md)。`/chat` 响应及 `/trace/tool/{request_id}`
 会返回 `stage_timings_ms`，用于区分意图、Agent、Composer 与存储耗时。
 
+确定性合并与 LLM 合并各 10 次的延迟、流程断言和误报分析见
+[Composer 对照实验 v1](docs/composer_ablation_v1.md)。
+
 RAG 检索消融实验：
 
 ```bash
