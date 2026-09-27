@@ -6,6 +6,7 @@ These JSONL files are the versioned inputs for CommerceMind's offline experiment
 
 | File | Cases | Purpose |
 |---|---:|---|
+| `benchmark_v1.jsonl` | 160 | Unified normalized benchmark across intent, routing, RAG, and deterministic policy safety |
 | `intent_cases.jsonl` | 30 | Balanced, direct intent-recognition baseline |
 | `intent_robustness_cases.jsonl` | 20 | Colloquial, implicit, negated, and multi-question utterances |
 | `orchestration_cases.jsonl` | 20 | Single-domain and multi-domain Agent-routing decisions |
@@ -20,6 +21,7 @@ These JSONL files are the versioned inputs for CommerceMind's offline experiment
 - Results on these files demonstrate regression behavior only; they do not estimate production accuracy.
 - Case IDs must remain stable. Add new cases instead of silently changing labels after observing errors.
 - Files named `holdout_v1` were added after the initial rules and must remain frozen. Any future tuning must be evaluated on a new `holdout_v2`, not by editing v1 labels.
+- `benchmark_v1.jsonl` normalizes the existing 124 intent/routing/RAG cases and adds 36 deterministic tool/transaction-policy cases. Rebuild it with `scripts/build_benchmark_v1.py`; do not hand-edit generated rows.
 
 ## Leakage controls
 
@@ -37,6 +39,9 @@ These JSONL files are the versioned inputs for CommerceMind's offline experiment
 .runtime-venv/bin/python scripts/run_orchestration_ablation.py
 .runtime-venv/bin/python scripts/run_orchestration_ablation.py --dataset data/eval/orchestration_holdout_v1.jsonl --name orchestration_holdout_v1
 .runtime-venv/bin/python scripts/run_task_evaluation.py
+.runtime-venv/bin/python scripts/run_unified_benchmark.py
+# Adds real LLM calls for the 70 intent cases:
+.runtime-venv/bin/python scripts/run_unified_benchmark.py --live-llm
 ```
 
 Pass `--live-llm` only with a newly issued local API key. Never commit `.env` or generated outputs.

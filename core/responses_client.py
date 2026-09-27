@@ -65,6 +65,7 @@ class _Messages:
         content: List[Any] = []
         text_parts: List[str] = []
         calls: Dict[str, Dict[str, str]] = {}
+        usage: Dict[str, int] = {}
 
         async with httpx.AsyncClient(timeout=self._client.timeout) as client:
             async with client.stream(
@@ -105,6 +106,14 @@ class _Messages:
                         calls.setdefault(call_id, {"id": call_id, "name": str(event.get("name", "")), "arguments": ""})
                         calls[call_id]["name"] = str(event.get("name") or calls[call_id]["name"])
                         calls[call_id]["arguments"] = str(event.get("arguments") or calls[call_id]["arguments"])
+                    elif event_type == "response.completed":
+                        response_data = event.get("response") or {}
+                        raw_usage = response_data.get("usage") or event.get("usage") or {}
+                        if isinstance(raw_usage, dict):
+                            usage = {
+                                "input_tokens": int(raw_usage.get("input_tokens", 0) or 0),
+                                "output_tokens": int(raw_usage.get("output_tokens", 0) or 0),
+                            }
 
         text = "".join(text_parts).strip()
         if text:
@@ -122,7 +131,7 @@ class _Messages:
             ))
         if not content:
             raise RuntimeError("Responses API 未返回文本或工具调用")
-        return SimpleNamespace(content=content)
+        return SimpleNamespace(content=content, usage=usage or None)
 
     @staticmethod
     def _convert_messages(messages: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:

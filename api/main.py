@@ -294,6 +294,7 @@ class ChatResponse(BaseModel):
     citations: List[Dict[str, Any]] = Field(default_factory=list)
     stage_timings_ms: Dict[str, Any] = Field(default_factory=dict)
     degraded_agents: List[str] = Field(default_factory=list)
+    model_usage: Dict[str, Any] = Field(default_factory=dict)
 
 
 class ToolTraceResponse(BaseModel):
@@ -348,7 +349,14 @@ async def chat(req: ChatRequest, authorization: Optional[str] = Header(default=N
     主对话接口。完整流程：
       记忆读取 → 意图识别 → Agent 路由 → 执行 → 记忆写入
     """
+    from core.usage_tracker import usage_scope
     request_t0 = time.monotonic()
+    with usage_scope() as request_usage:
+        return await _chat_with_usage(req, authorization, request_t0, request_usage)
+
+
+async def _chat_with_usage(req: ChatRequest, authorization: Optional[str], request_t0: float, request_usage):
+    """Implementation split out so the usage scope covers every model call."""
     if _orchestrator is None or _memory is None:
         raise HTTPException(503, "服务未就绪")
 
@@ -472,6 +480,7 @@ async def chat(req: ChatRequest, authorization: Optional[str] = Header(default=N
         citations=citations,
         stage_timings_ms=stage_timings_ms,
         degraded_agents=result.degraded_agents,
+        model_usage=request_usage.as_dict(),
     )
 
 
