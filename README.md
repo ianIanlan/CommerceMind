@@ -4,7 +4,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.12-blue)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-API-009688)](https://fastapi.tiangolo.com/)
-[![Tests](https://img.shields.io/badge/tests-90%20passed-brightgreen)](#验证结果)
+[![Tests](https://img.shields.io/badge/tests-92%20passed-brightgreen)](#验证结果)
 [![Benchmark](https://img.shields.io/badge/benchmark-160%20cases-blueviolet)](docs/unified_benchmark_v1.md)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
@@ -94,6 +94,8 @@ flowchart LR
 | RAG 检索 | 22 | Hit@3 / MRR | 78.95% / 0.763 |
 | 工具与交易策略 | 36 | Pass Rate | 100% |
 
+为衡量内部合成数据的乐观偏差，项目另从 Banking77 官方测试集冻结抽取 120 条未经改写的外部公开英文客服查询。按当前部署口径 `LLM + Pattern` 测得 Accuracy **75.83%**（95% CI 67.45%–82.61%），比内部集低 17.03 个百分点。结果和错误分布见[外部冻结评测](docs/external_banking77_v1.md)。
+
 报告保留了 5 个意图错误、4 个多领域漏路由和 4 个 RAG 漏召回，没有隐藏失败样本。
 
 ```bash
@@ -116,7 +118,7 @@ flowchart LR
 
 ### 自动化与故障实验
 
-- 90 项自动化测试通过。
+- 92 项自动化测试通过。
 - Composer 确定性与 LLM 模式各 10 次对照。
 - 必需只读工具策略开启/关闭各 10 次对照。
 - Agent 1 秒超时故障注入，验证事实保留与降级。

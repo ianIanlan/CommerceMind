@@ -1,0 +1,27 @@
+{
+  "name": "CommerceMind external Banking77 v1",
+  "source": "https://github.com/PolyAI-LDN/task-specific-datasets/tree/master/banking_data",
+  "source_split": "test",
+  "source_commit": "57ec275d8078af65b7731c2a98be812d844a6d6b",
+  "source_csv_sha256": "d12d6e3bc4c3103966ae786dc435913c0c563dfa328f5a3646d0e62cfeeb474d",
+  "license": "CC BY 4.0",
+  "citation": "Casanueva et al., Efficient Intent Detection with Dual Sentence Encoders, NLP4ConvAI 2020",
+  "selection_seed": 20261001,
+  "per_source_category": 15,
+  "category_map": {
+    "transaction_charged_twice": "duplicate_payment",
+    "request_refund": "refund",
+    "Refund_not_showing_up": "refund_status",
+    "declined_card_payment": "payment_issue",
+    "card_payment_not_recognised": "account_security",
+    "compromised_card": "account_security",
+    "passcode_forgotten": "technical_login",
+    "card_delivery_estimate": "logistics"
+  },
+  "case_count": 120,
+  "limitations": [
+    "Banking-domain English queries are used as a cross-domain transfer test, not as e-commerce production traffic.",
+    "Source labels are deterministically mapped to the closest CommerceMind intent without changing source text.",
+    "The external test set must not be used to tune prompts, patterns, weights, or thresholds."
+  ]
+}

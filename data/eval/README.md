@@ -7,6 +7,7 @@ These JSONL files are the versioned inputs for CommerceMind's offline experiment
 | File | Cases | Purpose |
 |---|---:|---|
 | `benchmark_v1.jsonl` | 160 | Unified normalized benchmark across intent, routing, RAG, and deterministic policy safety |
+| `external_banking77_v1.jsonl` | 120 | Frozen external cross-domain intent test sampled from Banking77's official test split |
 | `intent_cases.jsonl` | 30 | Balanced, direct intent-recognition baseline |
 | `intent_robustness_cases.jsonl` | 20 | Colloquial, implicit, negated, and multi-question utterances |
 | `orchestration_cases.jsonl` | 20 | Single-domain and multi-domain Agent-routing decisions |
@@ -22,6 +23,8 @@ These JSONL files are the versioned inputs for CommerceMind's offline experiment
 - Case IDs must remain stable. Add new cases instead of silently changing labels after observing errors.
 - Files named `holdout_v1` were added after the initial rules and must remain frozen. Any future tuning must be evaluated on a new `holdout_v2`, not by editing v1 labels.
 - `benchmark_v1.jsonl` normalizes the existing 124 intent/routing/RAG cases and adds 36 deterministic tool/transaction-policy cases. Rebuild it with `scripts/build_benchmark_v1.py`; do not hand-edit generated rows.
+- `external_banking77_v1.jsonl` contains original English Banking77 queries under CC BY 4.0. It is a banking-domain transfer test, not e-commerce production traffic. See `BANKING77_ATTRIBUTION.md` and its manifest.
+- The external set is frozen: do not tune prompts, patterns, weights, or thresholds against its errors.
 
 ## Leakage controls
 
