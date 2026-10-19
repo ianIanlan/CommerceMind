@@ -7,7 +7,7 @@ These JSONL files are the versioned inputs for CommerceMind's offline experiment
 | File | Cases | Purpose |
 |---|---:|---|
 | `benchmark_v1.jsonl` | 160 | Unified normalized benchmark across intent, routing, RAG, and deterministic policy safety |
-| `external_banking77_v1.jsonl` | 120 | Frozen external cross-domain intent test sampled from Banking77's official test split |
+| `external_jddc_v1.jsonl` | 申请并导入后生成 | 冻结的 JDDC 中文真实电商客服评测集；数据文件不提交仓库 |
 | `intent_cases.jsonl` | 30 | Balanced, direct intent-recognition baseline |
 | `intent_robustness_cases.jsonl` | 20 | Colloquial, implicit, negated, and multi-question utterances |
 | `orchestration_cases.jsonl` | 20 | Single-domain and multi-domain Agent-routing decisions |
@@ -23,8 +23,9 @@ These JSONL files are the versioned inputs for CommerceMind's offline experiment
 - Case IDs must remain stable. Add new cases instead of silently changing labels after observing errors.
 - Files named `holdout_v1` were added after the initial rules and must remain frozen. Any future tuning must be evaluated on a new `holdout_v2`, not by editing v1 labels.
 - `benchmark_v1.jsonl` normalizes the existing 124 intent/routing/RAG cases and adds 36 deterministic tool/transaction-policy cases. Rebuild it with `scripts/build_benchmark_v1.py`; do not hand-edit generated rows.
-- `external_banking77_v1.jsonl` contains original English Banking77 queries under CC BY 4.0. It is a banking-domain transfer test, not e-commerce production traffic. See `BANKING77_ATTRIBUTION.md` and its manifest.
-- The external set is frozen: do not tune prompts, patterns, weights, or thresholds against its errors.
+- 外部主评测采用 JDDC。JDDC 2.1 需向数据提供方申请，仓库不会用合成数据冒充授权语料。
+- 获批后使用 `scripts/import_jddc.py` 从授权副本生成 `external_jddc_v1.jsonl`；映射必须在首次评测前冻结。
+- JDDC 外部测试集只能用于最终评估，禁止根据测试错误调整 Prompt、关键词、权重或阈值。
 
 ## Leakage controls
 
@@ -45,6 +46,9 @@ These JSONL files are the versioned inputs for CommerceMind's offline experiment
 .runtime-venv/bin/python scripts/run_unified_benchmark.py
 # Adds real LLM calls for the 70 intent cases:
 .runtime-venv/bin/python scripts/run_unified_benchmark.py --live-llm
+# JDDC 获批、完成标签映射后：
+.runtime-venv/bin/python scripts/run_ablation.py --live-llm \
+  --dataset data/eval/external_jddc_v1.jsonl --name external_jddc_v1
 ```
 
 Pass `--live-llm` only with a newly issued local API key. Never commit `.env` or generated outputs.

@@ -16,6 +16,8 @@ venv/
 data/*
 !data/eval/
 !data/eval/**
+# JDDC 原始/派生对话受数据集授权约束，只提交导入器、映射模板和结果摘要。
+data/eval/external_jddc*.jsonl
 data/eval/baseline.json
 !data/demo_docs/
 !data/demo_docs/**
