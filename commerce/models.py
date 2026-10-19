@@ -30,6 +30,7 @@ class ActionStatus(str, Enum):
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    RECONCILIATION_REQUIRED = "reconciliation_required"
 
 
 @dataclass(frozen=True)

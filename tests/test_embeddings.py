@@ -10,6 +10,7 @@ from core.embeddings import (
     OpenAICompatibleEmbeddingClient,
     local_text_embedding,
 )
+from core.intent_recognizer import IntentCategory, IntentRecognizer
 
 
 def test_local_embedding_is_deterministic_and_normalized():
@@ -73,3 +74,46 @@ def test_openai_compatible_embedding_exposes_provider_failure():
         pass
     else:
         raise AssertionError("provider failure must not be silently converted to a local embedding")
+
+
+def test_character_embedding_can_never_skip_llm(monkeypatch):
+    monkeypatch.setenv("EMBEDDING_BACKEND", "char")
+    recognizer = IntentRecognizer("offline-key")
+    result = {
+        "intent": IntentCategory.LOGISTICS,
+        "confidence": 0.99,
+        "margin": 0.5,
+        "backend": "char_ngram_local",
+    }
+
+    assert recognizer._can_use_embedding_fast_path(result) is False
+
+
+def test_calibrated_semantic_fast_path_skips_llm(monkeypatch):
+    monkeypatch.setenv("EMBEDDING_BACKEND", "char")
+    monkeypatch.setenv("INTENT_EMBEDDING_ENABLED", "true")
+    monkeypatch.setenv("INTENT_EMBEDDING_FAST_PATH_ENABLED", "true")
+    monkeypatch.setenv("INTENT_EMBEDDING_FAST_PATH_THRESHOLD", "0.72")
+    monkeypatch.setenv("INTENT_EMBEDDING_FAST_PATH_MARGIN", "0.04")
+    recognizer = IntentRecognizer("offline-key")
+    calls = {"llm": 0}
+
+    async def embedding(_message):
+        return {
+            "intent": IntentCategory.LOGISTICS,
+            "confidence": 0.84,
+            "margin": 0.12,
+            "backend": "semantic_local_fastembed",
+        }
+
+    async def llm(_message, _history):
+        calls["llm"] += 1
+        raise AssertionError("LLM must not run for a calibrated embedding fast-path hit")
+
+    recognizer._embedding_recognize = embedding
+    recognizer._llm_recognize = llm
+    result = asyncio.run(recognizer.recognize("parcel has not arrived"))
+
+    assert result.intent is IntentCategory.LOGISTICS
+    assert result.source_scores["embedding_fast_path"] == 1.0
+    assert calls["llm"] == 0

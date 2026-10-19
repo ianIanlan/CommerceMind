@@ -28,6 +28,7 @@ class CommerceTaskEvaluator:
             ("shipped_address_change_rejected", self._address_boundary),
             ("handoff_is_persistent", self._handoff),
             ("provider_failure_never_reports_success", self._provider_failure),
+            ("provider_unknown_requires_reconciliation", self._provider_unknown),
         ]
         results = []
         for name, check in checks:
@@ -87,6 +88,36 @@ class CommerceTaskEvaluator:
         result = service.confirm_action("demo-user", action.action_id)
         assert result.status is ActionStatus.FAILED, "provider failure was reported as success"
         assert not store.fetch_all("SELECT * FROM refund_requests"), "failed provider call created a local refund"
+
+    @staticmethod
+    def _provider_unknown(_service: CommerceService, _store: CommerceStore) -> None:
+        class UnknownThenSuccessGateway:
+            calls = 0
+
+            def refund(self, payment_reference, amount, idempotency_key, metadata=None):
+                self.calls += 1
+                if self.calls == 1:
+                    return GatewayRefund(
+                        False, None, "unknown", "PROVIDER_OUTCOME_UNKNOWN", "simulated timeout", True
+                    )
+                return GatewayRefund(True, "re_reconciled", "succeeded")
+
+        store = CommerceStore(":memory:")
+        store.seed_demo_data()
+        store.execute(
+            "UPDATE payments SET payment_id=?, channel='stripe' WHERE order_id=?",
+            ("pi_unknown", "ORD-10001"),
+        )
+        gateway = UnknownThenSuccessGateway()
+        service = CommerceService(store, payment_gateway=gateway)
+        action = service.prepare_refund("demo-user", "ORD-10001", "unknown outcome", "unknown-provider")
+        first = service.confirm_action("demo-user", action.action_id)
+        assert first.status is ActionStatus.RECONCILIATION_REQUIRED
+        assert not store.fetch_all("SELECT * FROM refund_requests")
+        second = service.confirm_action("demo-user", action.action_id)
+        assert second.status is ActionStatus.SUCCEEDED
+        assert gateway.calls == 2
+        assert len(store.fetch_all("SELECT * FROM refund_requests")) == 1
 
 
 def write_task_report(results: List[TaskResult], json_path: Path, markdown_path: Path) -> None:

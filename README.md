@@ -4,7 +4,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.12-blue)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-API-009688)](https://fastapi.tiangolo.com/)
-[![Tests](https://img.shields.io/badge/tests-96%20passed-brightgreen)](#验证结果)
+[![Tests](https://img.shields.io/badge/tests-104%20passed-brightgreen)](#验证结果)
 [![Benchmark](https://img.shields.io/badge/benchmark-160%20cases-blueviolet)](docs/unified_benchmark_v1.md)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
@@ -96,6 +96,8 @@ flowchart LR
 
 项目另从公开 AmazonHelp 客服对话构建脱敏外部评测：55 条诊断集上，真实模型生产融合从 **45.45%** 提升到 **89.09%**，LLM 协议失败率由 **23.64%** 降到 **3.64%**；随后在零重叠、只运行一次的 25 条 holdout 上取得 **92.00% Accuracy**（95% CI 75.03%–97.78%）。标签为项目审阅的 silver label，结果不等同于线上生产准确率；完整口径见 [AmazonHelp 外部实验](docs/external_amazonhelp_v1.md)。
 
+多语言语义 Embedding 采用选择性成本路由：阈值只在55条诊断集上校准，在25条冻结验证集上以 **100% 路由精度覆盖1条请求（4%）**。收益不足以默认开启，因此生产默认仍由 LLM 主判；完整负结果见[语义 Embedding 实验](docs/semantic_embedding_experiment.md)。
+
 报告保留了 5 个意图错误、4 个多领域漏路由和 4 个 RAG 漏召回，没有隐藏失败样本。
 
 ```bash
@@ -118,13 +120,14 @@ flowchart LR
 
 ### 自动化与故障实验
 
-- 96 项自动化测试通过。
+- 104 项自动化测试通过。
+- 7/7 任务级状态断言通过；支付渠道结果未知时进入 reconciliation，而不是错误宣称退款成败。
 - Composer 确定性与 LLM 模式各 10 次对照。
 - 必需只读工具策略开启/关闭各 10 次对照。
 - Agent 1 秒超时故障注入，验证事实保留与降级。
 - Docker 场景验证路由、越权隔离、退款确认和幂等。
 
-实验索引：[性能优化](docs/performance_optimization_v1.md) · [Composer 消融](docs/composer_ablation_v1.md) · [必需工具策略](docs/required_tool_policy_experiment_v1.md) · [时间预算](docs/agent_timeout_budget_v1.md)
+实验索引：[性能优化](docs/performance_optimization_v1.md) · [Composer 消融](docs/composer_ablation_v1.md) · [必需工具策略](docs/required_tool_policy_experiment_v1.md) · [时间预算](docs/agent_timeout_budget_v1.md) · [高风险交易可靠性](docs/transaction_reliability_v1.md)
 
 ## 快速启动
 

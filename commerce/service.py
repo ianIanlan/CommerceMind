@@ -259,7 +259,10 @@ class CommerceService:
             action = dict(row)
             if action["status"] == ActionStatus.SUCCEEDED.value:
                 return self._action_from_row(action, "动作已经执行成功，未重复执行")
-            if action["status"] != ActionStatus.AWAITING_CONFIRMATION.value:
+            if action["status"] not in {
+                ActionStatus.AWAITING_CONFIRMATION.value,
+                ActionStatus.RECONCILIATION_REQUIRED.value,
+            }:
                 return self._action_from_row(action, f"当前状态 {action['status']} 不允许确认")
             payload = json.loads(action["payload_json"])
             conn.execute(
@@ -282,6 +285,31 @@ class CommerceService:
                         {"order_id": action["order_id"], "user_id": user_id},
                     )
                     if not gateway_result.success:
+                        if gateway_result.outcome_unknown:
+                            conn.execute(
+                                "UPDATE pending_actions SET status=?,updated_at=? WHERE action_id=?",
+                                (ActionStatus.RECONCILIATION_REQUIRED.value, utc_now(), action_id),
+                            )
+                            conn.execute(
+                                "INSERT INTO audit_events(request_id,user_id,event_type,target_id,detail_json,created_at) VALUES(?,?,?,?,?,?)",
+                                (
+                                    request_id, user_id, "REFUND_PROVIDER_OUTCOME_UNKNOWN", action_id,
+                                    json.dumps({
+                                        "action_id": action_id,
+                                        "order_id": action["order_id"],
+                                        "provider_error_code": gateway_result.error_code,
+                                    }, ensure_ascii=False),
+                                    utc_now(),
+                                ),
+                            )
+                            return ActionResult(
+                                action_id,
+                                action["action_type"],
+                                ActionStatus.RECONCILIATION_REQUIRED,
+                                False,
+                                "支付渠道结果暂时未知，不能宣称退款成功或失败；系统将使用同一幂等键核对。",
+                                data={"order_id": action["order_id"], "retry_safe": True},
+                            )
                         raise ValueError(
                             f"支付渠道退款失败 [{gateway_result.error_code or 'UNKNOWN'}]："
                             f"{gateway_result.error or '请稍后重试'}"

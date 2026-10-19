@@ -7,7 +7,8 @@
   3. 关键词模式匹配（权重 10%）—— 零延迟兜底
 
 三路结果通过加权投票合并，置信度低于阈值时降级为 OTHER。
-LLM 和 Embedding 并行调用，不串行等待。
+默认由 LLM 主判。启用并校准语义 Embedding 快速路径后，只有高置信度且
+第一、第二候选差距足够大时才跳过 LLM；其余请求继续走 LLM。
 """
 import asyncio
 import hashlib
@@ -89,21 +90,21 @@ _TEMPLATES: Dict[IntentCategory, List[str]] = {
     IntentCategory.ACCOUNT:    ["修改邮箱", "注销账户", "更新个人信息"],
     IntentCategory.FEEDBACK:   ["服务很棒！", "非常满意", "给个好评"],
     IntentCategory.ORDER_STATUS: ["我的订单现在是什么状态？", "订单有没有发货？", "订单处理到哪一步了？"],
-    IntentCategory.LOGISTICS: ["快递什么时候到？", "物流一直不更新", "配送要多久？"],
-    IntentCategory.REFUND: ["我要申请退款", "退货退款怎么处理？", "退款多久到账？"],
+    IntentCategory.LOGISTICS: ["快递什么时候到？", "物流一直不更新", "配送要多久？", "Where is my package?", "My delivery is late"],
+    IntentCategory.REFUND: ["我要申请退款", "退货退款怎么处理？", "I want to request a refund", "Please refund this order"],
     IntentCategory.INVOICE: ["帮我开发票", "发票抬头怎么改？", "电子发票在哪里？"],
-    IntentCategory.PAYMENT_ISSUE: ["为什么重复扣款？", "支付失败怎么办？", "这个月多扣了钱"],
+    IntentCategory.PAYMENT_ISSUE: ["为什么重复扣款？", "支付失败怎么办？", "这个月多扣了钱", "There is an unknown charge", "My payment failed"],
     IntentCategory.ACCOUNT_SECURITY: ["账户被盗了", "发现异常登录", "我要重置密码"],
     IntentCategory.TECHNICAL_LOGIN: ["登录一直报401", "验证码收不到", "无法登录账号"],
     IntentCategory.TECHNICAL_CRASH: ["应用一直崩溃", "页面报500错误", "系统闪退"],
-    IntentCategory.HUMAN_HANDOFF: ["转人工客服", "我要找人工", "请升级处理"],
+    IntentCategory.HUMAN_HANDOFF: ["转人工客服", "我要找人工", "请升级处理", "I need a human agent", "Please call me back"],
     IntentCategory.PRODUCT_QUERY: ["这个商品有哪些规格？", "商品还有库存吗？"],
-    IntentCategory.ORDER_CANCEL: ["我要取消这个订单", "订单还没发货可以取消吗？"],
+    IntentCategory.ORDER_CANCEL: ["我要取消这个订单", "订单还没发货可以取消吗？", "Cancel my order", "Why was my order cancelled?"],
     IntentCategory.ADDRESS_CHANGE: ["订单地址填错了", "发货前可以修改地址吗？"],
-    IntentCategory.RETURN_EXCHANGE: ["商品不合适想退货", "怎么换货？"],
+    IntentCategory.RETURN_EXCHANGE: ["商品不合适想退货", "怎么换货？", "I need to return this item", "Where is my replacement?"],
     IntentCategory.DAMAGED_ITEM: ["收到的商品破损了", "包裹少了一件商品"],
     IntentCategory.DUPLICATE_PAYMENT: ["同一订单被扣了两次", "出现两笔相同支付"],
-    IntentCategory.REFUND_STATUS: ["退款到哪一步了？", "显示退款成功但没有到账"],
+    IntentCategory.REFUND_STATUS: ["退款到哪一步了？", "显示退款成功但没有到账", "My refund has not arrived", "I am still waiting for the refund"],
 }
 
 _INTENT_DEFINITIONS: Dict[IntentCategory, str] = {
@@ -227,7 +228,7 @@ class IntentRecognizer:
             self._embedding_backend = "semantic_remote"
         elif embedding_backend == "fastembed":
             self._semantic_embedding_client = FastEmbedEmbeddingClient(
-                embedding_model or "BAAI/bge-small-zh-v1.5"
+                embedding_model or "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
             )
             self._embedding_backend = "semantic_local_fastembed"
         else:
@@ -236,6 +237,11 @@ class IntentRecognizer:
         self._embedding_fallback_local = os.getenv("EMBEDDING_FALLBACK_LOCAL", "false").lower() in {
             "1", "true", "yes",
         }
+        self._embedding_fast_path_enabled = os.getenv(
+            "INTENT_EMBEDDING_FAST_PATH_ENABLED", "false"
+        ).lower() in {"1", "true", "yes"}
+        self._embedding_fast_path_threshold = float(os.getenv("INTENT_EMBEDDING_FAST_PATH_THRESHOLD", "0.82"))
+        self._embedding_fast_path_margin = float(os.getenv("INTENT_EMBEDDING_FAST_PATH_MARGIN", "0.08"))
 
         self._tpl_embeddings: Dict[IntentCategory, List[List[float]]] = {}
         self._cache: Dict[str, IntentResult] = {}
@@ -284,10 +290,40 @@ class IntentRecognizer:
             self._cache[key] = result
             return result
 
-        # LLM 和 Embedding 并行（Embedding 不可用时跳过）
+        # 选择性成本路由：仅真实语义后端、高置信度、足够 margin 的细粒度意图
+        # 才允许跳过 LLM。字符哈希向量永远不能触发该快速路径。
+        precomputed_emb: Optional[Dict[str, Any]] = None
+        if self._embedding_enabled and self._embedding_fast_path_enabled:
+            precomputed_emb = await self._embedding_recognize(message)
+            if self._can_use_embedding_fast_path(precomputed_emb):
+                intent = precomputed_emb["intent"]
+                confidence = float(precomputed_emb["confidence"])
+                result = IntentResult(
+                    intent=intent,
+                    confidence=confidence,
+                    urgency=self._urgency(message, intent),
+                    intent_group=self._intent_group(intent),
+                    entities=self._extract_entities(message),
+                    reasoning="校准后的高置信度语义 Embedding 快速路径",
+                    latency_ms=(time.monotonic() - t0) * 1000,
+                    source_scores={
+                        "llm": 0.0,
+                        "embedding": confidence,
+                        "pattern": float(pat.get("confidence", 0.0) or 0.0),
+                        "embedding_margin": float(precomputed_emb.get("margin", 0.0)),
+                        "embedding_fast_path": 1.0,
+                    },
+                )
+                self._cache[key] = result
+                return result
+
+        # 快速路径未命中时，LLM 与尚未计算的 Embedding 并行。
         llm_disabled = os.getenv("DISABLE_LLM", "false").lower() in {"1", "true", "yes"}
         llm_task = None if llm_disabled else asyncio.create_task(self._llm_recognize(message, history))
-        emb_task = asyncio.create_task(self._embedding_recognize(message)) if self._embedding_enabled else None
+        emb_task = (
+            asyncio.create_task(self._embedding_recognize(message))
+            if self._embedding_enabled and precomputed_emb is None else None
+        )
 
         if emb_task:
             if llm_task:
@@ -295,6 +331,14 @@ class IntentRecognizer:
             else:
                 emb = await emb_task
                 llm = {"intent": IntentCategory.OTHER, "confidence": 0.0, "reasoning": "本地演示模式", "failed": True}
+        elif precomputed_emb is not None:
+            llm = await llm_task if llm_task else {
+                "intent": IntentCategory.OTHER,
+                "confidence": 0.0,
+                "reasoning": "本地演示模式",
+                "failed": True,
+            }
+            emb = precomputed_emb
         else:
             llm = await llm_task if llm_task else {
                 "intent": IntentCategory.OTHER,
@@ -424,13 +468,22 @@ class IntentRecognizer:
             await self._load_template_embeddings()
             msg_vec = await self._embed_text(message)
 
-            best_cat, best_score = IntentCategory.OTHER, 0.0
+            ranked: List[tuple[float, IntentCategory]] = []
             for cat, vecs in self._tpl_embeddings.items():
                 score = max(_cosine(msg_vec, v) for v in vecs)
-                if score > best_score:
-                    best_score, best_cat = score, cat
+                ranked.append((score, cat))
 
-            return {"intent": best_cat, "confidence": best_score, "backend": self._embedding_backend}
+            ranked.sort(key=lambda item: item[0], reverse=True)
+            best_score, best_cat = ranked[0]
+            second_score = ranked[1][0] if len(ranked) > 1 else 0.0
+
+            return {
+                "intent": best_cat,
+                "confidence": best_score,
+                "second_confidence": second_score,
+                "margin": best_score - second_score,
+                "backend": self._embedding_backend,
+            }
         except Exception as ex:
             logger.warning(f"Embedding 识别失败: {ex}")
             return {
@@ -440,6 +493,16 @@ class IntentRecognizer:
                 "failed": True,
                 "error": type(ex).__name__,
             }
+
+    def _can_use_embedding_fast_path(self, result: Dict[str, Any]) -> bool:
+        """Return whether calibrated semantic evidence may safely skip the LLM."""
+        return (
+            not result.get("failed")
+            and str(result.get("backend", "")).startswith("semantic_")
+            and result.get("intent") in _SPECIFIC_INTENTS
+            and float(result.get("confidence", 0.0) or 0.0) >= self._embedding_fast_path_threshold
+            and float(result.get("margin", 0.0) or 0.0) >= self._embedding_fast_path_margin
+        )
 
     def _pattern_recognize(self, message: str) -> Dict[str, Any]:
         """策略 3：关键词模式匹配（同步，零延迟兜底）。"""

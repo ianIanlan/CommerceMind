@@ -14,6 +14,7 @@ class GatewayRefund:
     status: str
     error_code: Optional[str] = None
     error: Optional[str] = None
+    outcome_unknown: bool = False
 
 
 class PaymentGateway(Protocol):
@@ -78,8 +79,15 @@ class StripePaymentGateway:
                     f"{self.base_url}/v1/refunds", data=form, headers=headers, timeout=self.timeout_seconds
                 )
             payload = response.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            return GatewayRefund(False, None, "failed", "PROVIDER_UNAVAILABLE", str(exc)[:300])
+        except httpx.HTTPError as exc:
+            # A timeout/connection drop may happen after the provider committed the
+            # refund. The caller must not report failure or create a new operation;
+            # it can safely reconcile with the same provider idempotency key.
+            return GatewayRefund(
+                False, None, "unknown", "PROVIDER_OUTCOME_UNKNOWN", str(exc)[:300], True
+            )
+        except ValueError as exc:
+            return GatewayRefund(False, None, "failed", "INVALID_PROVIDER_RESPONSE", str(exc)[:300])
 
         if response.is_error:
             provider_error = payload.get("error", {}) if isinstance(payload, dict) else {}
