@@ -1,18 +1,21 @@
 #!/bin/sh
 set -eu
 
-base_url="${COMMERCE_BASE_URL:-http://localhost}"
+api_base_url="${COMMERCE_BASE_URL:-http://localhost:8000}"
+ui_base_url="${COMMERCE_UI_BASE_URL:-}"
 
-echo "[1/4] frontend"
-curl -fsS "${base_url}/" >/dev/null
+if [ -n "${ui_base_url}" ]; then
+  echo "[optional] frontend"
+  curl -fsS "${ui_base_url}/" >/dev/null
+fi
 
-echo "[2/4] backend health through frontend proxy"
-curl -fsS "${base_url}/api/python/health"
+echo "[1/3] backend health"
+curl -fsS "${api_base_url}/health"
 
-echo "\n[3/4] knowledge base"
-curl -fsS "${base_url}/api/python/knowledge/stats"
+echo "\n[2/3] knowledge base"
+curl -fsS "${api_base_url}/knowledge/stats"
 
-echo "\n[4/4] owned demo order"
-curl -fsS "${base_url}/api/python/commerce/orders/ORD-10002?user_id=demo-user"
+echo "\n[3/3] owned demo order"
+curl -fsS "${api_base_url}/commerce/orders/ORD-10002?user_id=demo-user"
 
 echo "\nDocker smoke test passed."

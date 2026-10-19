@@ -2,14 +2,15 @@
 
 ## Docker 包含什么
 
-一条 Compose 命令会启动六个容器：
+默认 Compose 命令会启动五个后端容器：
 
-- `frontend`：Vue 静态页面和 Nginx API 代理
 - `commercemind`：FastAPI、多 Agent、工具调用和评测接口
 - `postgres`：订单、动作、退款、审计和人工工单
 - `redis`：短期对话记忆
 - `chromadb`：知识库与长期记忆向量存储
 - `prometheus`：运行指标
+
+`frontend` 是可选的 `ui` profile。这样单独 clone 后端仓库也能启动，不要求本地必须存在另一个前端目录。
 
 ## macOS 首次准备
 
@@ -29,7 +30,7 @@ docker compose up -d --build
 docker compose ps
 ```
 
-首次构建需要下载基础镜像和 Python/npm 依赖，耗时会比后续启动长。
+首次默认构建需要下载基础镜像和 Python 依赖，耗时会比后续启动长；启用 `ui` profile 时还会安装前端 npm 依赖。
 后端默认使用清华 PyPI 镜像加速构建；如需切换可在启动前设置
 `PYTHON_PACKAGE_INDEX=https://pypi.org/simple`。
 
@@ -44,12 +45,24 @@ PROFILE_AUTO_UPDATE=true
 ChromaDB 中的知识库和长期记忆默认使用无需下载权重的本地字符 n-gram 向量。这保证离线启动；
 它适合作为部署兜底，不应包装成训练型语义 Embedding 的等价替代。
 
-访问：
+默认访问：
 
-- 前端：http://localhost
-- 后端健康检查：http://localhost/api/python/health
+- 后端健康检查：http://localhost:8000/health
 - Swagger：http://localhost:8000/docs
 - Prometheus：http://localhost:9090
+
+## 可选 Vue 工作台
+
+将前端项目放在后端同级的 `CommerceMindFrontend` 目录，或设置 `COMMERCEMIND_FRONTEND_CONTEXT`，然后运行：
+
+```bash
+docker compose --profile ui up -d --build
+```
+
+此时访问：
+
+- 前端：http://localhost
+- Nginx 代理健康检查：http://localhost/api/python/health
 
 ## 验收
 
@@ -57,6 +70,8 @@ ChromaDB 中的知识库和长期记忆默认使用无需下载权重的本地�
 ./scripts/docker_smoke_test.sh
 docker compose logs --tail=100 commercemind
 ```
+
+脚本默认直接验证 `http://localhost:8000`。启用 UI profile 时可额外设置 `COMMERCE_UI_BASE_URL=http://localhost` 验证前端首页。
 
 ## 停止与数据
 

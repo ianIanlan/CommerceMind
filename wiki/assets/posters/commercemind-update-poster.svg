@@ -49,16 +49,16 @@
 
   <!-- Header -->
   <rect class="header shadow" x="36" y="34" width="1008" height="222" rx="24"/>
-  <text class="title" x="72" y="106">CommerceMind 又升级了</text>
-  <text class="subtitle" x="74" y="154">Python + Java 双版本 · 一键部署 · 动态 Skills</text>
-  <text class="body" x="74" y="200">企业级智能客服 Agent 项目继续补齐工程化能力</text>
+  <text class="title" x="72" y="106">CommerceMind 可靠电商 Agent</text>
+  <text class="subtitle" x="74" y="154">条件路由 · 受控工具 · 交易状态机</text>
+  <text class="body" x="74" y="200">模型负责理解，代码负责权限、事实与交易安全</text>
   <g transform="translate(768,74)">
     <rect class="green-card" width="220" height="122" rx="18"/>
     <circle class="green" cx="48" cy="44" r="26"/>
     <path d="M34 45 L45 57 L64 32" stroke="#fff" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
     <text class="label green-text" x="90" y="42">本次重点</text>
-    <text class="muted" x="90" y="72">Skills 动态注入</text>
-    <text class="muted" x="90" y="98">系统架构图补齐</text>
+    <text class="muted" x="90" y="72">真实外部评测</text>
+    <text class="muted" x="90" y="98">故障与并发验证</text>
   </g>
 
   <!-- Upgrade cards -->
@@ -69,8 +69,8 @@
     <rect class="card blue-card" width="210" height="104" rx="16"/>
     <circle class="blue" cx="34" cy="34" r="18"/>
     <text class="tiny" x="29" y="39">1</text>
-    <text class="label blue-text" x="64" y="38">双版本</text>
-    <text class="small" x="28" y="74">Python + Java</text>
+    <text class="label blue-text" x="64" y="38">真实语料</text>
+    <text class="small" x="28" y="74">AmazonHelp</text>
   </g>
   <g transform="translate(310,368)">
     <rect class="card green-card" width="210" height="104" rx="16"/>
@@ -83,15 +83,15 @@
     <rect class="card orange-card" width="210" height="104" rx="16"/>
     <circle class="orange" cx="34" cy="34" r="18"/>
     <text class="tiny" x="29" y="39">3</text>
-    <text class="label orange-text" x="64" y="38">动态 Skills</text>
-    <text class="small" x="28" y="74">热加载客服规范</text>
+    <text class="label orange-text" x="64" y="38">交易安全</text>
+    <text class="small" x="28" y="74">确认·幂等·核对</text>
   </g>
   <g transform="translate(786,368)">
     <rect class="card purple-card" width="210" height="104" rx="16"/>
     <circle class="purple" cx="34" cy="34" r="18"/>
     <text class="tiny" x="29" y="39">4</text>
-    <text class="label purple-text" x="64" y="38">架构图</text>
-    <text class="small" x="28" y="74">完整 wiki 展示</text>
+    <text class="label purple-text" x="64" y="38">可靠实验</text>
+    <text class="small" x="28" y="74">消融·故障注入</text>
   </g>
 
   <!-- Skills -->

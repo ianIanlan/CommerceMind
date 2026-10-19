@@ -43,9 +43,9 @@ CommerceMind 的目标就是把这些能力做成一条完整链路，而不是�
 
 更具体一点：
 
-- `IntentRecognizer` 先做三路融合意图识别
+- `IntentRecognizer` 先做以 LLM 为主、Pattern 兜底且可选语义 Embedding 快速路由的混合意图识别
 - `AgentOrchestrator` 基于意图、实体、关键词、运行状态做路由
-- `GeneralAgent / TechnicalAgent / BillingAgent / EscalationAgent` 不是同一种 prompt 的简单拷贝，而是有各自角色契约、工具白名单、输入输出边界的运行时角色
+- `General / Order / Billing / AfterSales / Technical / Escalation` 不是同一种 prompt 的简单拷贝，而是有各自角色契约、工具白名单、输入输出边界的运行时角色
 - 当请求同时覆盖多个业务域时，编排器会并行派发多个 Agent，再由 `ResponseComposer` 合并结果
 - 运行过程会把 Agent 成功率、延迟、工具质量回写到路由评分里，形成闭环
 
@@ -158,17 +158,18 @@ CommerceMind 不只识别“咨询、投诉、技术、账单”这种粗粒度�
 | 细粒度意图 | 归一化意图组 | 示例 |
 |---|---|---|
 | `logistics` | `query` | 快递什么时候到 |
-| `refund` | `billing` | 退款多久到账 |
+| `refund` | `billing` | 我要申请退款 |
+| `refund_status` | `billing` | 退款多久到账 |
 | `invoice` | `billing` | 帮我开发票 |
 | `payment_issue` | `billing` | 为什么重复扣款 |
 | `technical_login` | `technical` | 登录一直报 401 |
 | `technical_crash` | `technical` | 应用一直崩溃 |
 | `human_handoff` | `escalation` | 我要找人工客服 |
 
-意图识别使用三路融合：
+意图识别支持三类证据，但不会为了形式固定开启三路：
 
 - **LLM**：负责语义理解和上下文判断
-- **Embedding / 本地哈希向量**：负责模板相似度匹配
+- **Embedding**：只在语义模型完成阈值校准后用于选择性快速路由；当前默认关闭
 - **Pattern**：负责关键词兜底
 
 最终输出的不只是 `intent`，还包括：
