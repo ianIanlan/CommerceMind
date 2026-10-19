@@ -4,7 +4,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.12-blue)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-API-009688)](https://fastapi.tiangolo.com/)
-[![Tests](https://img.shields.io/badge/tests-92%20passed-brightgreen)](#验证结果)
+[![Tests](https://img.shields.io/badge/tests-96%20passed-brightgreen)](#验证结果)
 [![Benchmark](https://img.shields.io/badge/benchmark-160%20cases-blueviolet)](docs/unified_benchmark_v1.md)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
@@ -94,7 +94,7 @@ flowchart LR
 | RAG 检索 | 22 | Hit@3 / MRR | 78.95% / 0.763 |
 | 工具与交易策略 | 36 | Pass Rate | 100% |
 
-外部主评测已切换为京东真实电商客服语料 JDDC。由于 JDDC 2.1 需要向数据提供方申请，仓库仅提供可复现的导入、标签映射、冻结和评测流程；在授权数据实际导入并完成评测前，不展示或虚构 JDDC 指标。申请与复现实验见 [JDDC 评测方案](docs/external_jddc_v1.md)。
+项目另从公开 AmazonHelp 客服对话构建脱敏外部评测：55 条诊断集上，真实模型生产融合从 **45.45%** 提升到 **89.09%**，LLM 协议失败率由 **23.64%** 降到 **3.64%**；随后在零重叠、只运行一次的 25 条 holdout 上取得 **92.00% Accuracy**（95% CI 75.03%–97.78%）。标签为项目审阅的 silver label，结果不等同于线上生产准确率；完整口径见 [AmazonHelp 外部实验](docs/external_amazonhelp_v1.md)。
 
 报告保留了 5 个意图错误、4 个多领域漏路由和 4 个 RAG 漏召回，没有隐藏失败样本。
 
@@ -118,7 +118,7 @@ flowchart LR
 
 ### 自动化与故障实验
 
-- 92 项自动化测试通过。
+- 96 项自动化测试通过。
 - Composer 确定性与 LLM 模式各 10 次对照。
 - 必需只读工具策略开启/关闭各 10 次对照。
 - Agent 1 秒超时故障注入，验证事实保留与降级。

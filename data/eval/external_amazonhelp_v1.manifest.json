@@ -1,0 +1,39 @@
+{
+  "name": "CommerceMind external AmazonHelp v1",
+  "upstream": "venkatrepaka-umich/ConvoSense derived from Customer Support on Twitter",
+  "upstream_commit": "82b1b3e39db752a08a70d95bfafd160c334ca86d",
+  "license": "CC BY-NC-SA 4.0",
+  "selection_seed": 20261019,
+  "source_file_count": 12,
+  "source_file_sha256": {
+    "data.jsonl:annotator_01:batch_1": "e730592572e5f14564ec6d2030941a03eb4258edac93b0ae6c214d9609f90318",
+    "data.jsonl:annotator_01:batch_2": "4311c01b73f8fc6895a48e2549cfc28e412d1cca66ecd7fbd5243d15ffa1562e",
+    "data.jsonl:annotator_02:batch_1": "593b768346703b75dbab7d9e9431d4f3e95bb10556c174747adbae5cf5b650fa",
+    "data.jsonl:annotator_02:batch_2": "1705b1cd03137a3186512aceeee8911d4ce18a10b52ff50d2193ac40813c93d2",
+    "data.jsonl:annotator_03:batch_1": "8b7a97d5d084345f0640d171b860b10dc32cf7cc88d2d4f530cd27d57ae6c7af",
+    "data.jsonl:annotator_03:batch_2": "5c801ee35a988f7bae449dee11567713ca89953f8b4d29015eb6cba76247562b",
+    "data.jsonl:annotator_04:batch_1": "c2389cea289d28d16afa68b07c591ec409c1e1715590310f93b81b1b64d5f32a",
+    "data.jsonl:annotator_04:batch_2": "376b4c181e5edf36fdfd9bd243d9fb7733af485345128abeaa80e62c75fb84f5",
+    "data.jsonl:annotator_05:batch_1": "3b1f77f3916f9e8878a5a952bdf5317c276efab6a19b6d6f4120be90a3616a5b",
+    "data.jsonl:annotator_05:batch_2": "27a02152a32270cd7c2fddb6897ae6d43275475c9a463ef1c947b2d584917d01",
+    "data.jsonl:annotator_06:batch_1": "de0e68814837d1c58b025a4f134b483234073aea715d90211735dba996886483",
+    "data.jsonl:annotator_06:batch_2": "755ae5eabf0264aa28bdb979515cd2e96cf889eea41f7b960a2279cad624834e"
+  },
+  "label_provenance": "CommerceMind silver labels: high-precision candidate rules followed by one-pass full-dialogue audit; not source-provided gold labels or double-annotated gold data",
+  "case_count": 55,
+  "label_distribution": {
+    "human_handoff": 5,
+    "logistics": 10,
+    "order_cancel": 10,
+    "payment_issue": 10,
+    "refund_status": 10,
+    "return_exchange": 10
+  },
+  "limitations": [
+    "Public Twitter customer-support conversations from 2017, not private Amazon production tickets.",
+    "English/Spanish-to-English multi-turn subset; the benchmark uses the first customer message.",
+    "Order-like digit sequences, email addresses, phone-like numbers, and links are redacted before evaluation.",
+    "Intent labels are CommerceMind silver labels selected by high-precision rules, not official Amazon labels.",
+    "CC BY-NC-SA 4.0 restricts this dataset artifact to non-commercial use and requires attribution/share-alike."
+  ]
+}

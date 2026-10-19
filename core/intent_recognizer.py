@@ -106,6 +106,20 @@ _TEMPLATES: Dict[IntentCategory, List[str]] = {
     IntentCategory.REFUND_STATUS: ["退款到哪一步了？", "显示退款成功但没有到账"],
 }
 
+_INTENT_DEFINITIONS: Dict[IntentCategory, str] = {
+    IntentCategory.ORDER_STATUS: "订单总体状态 / overall order status",
+    IntentCategory.LOGISTICS: "配送、包裹、延误或轨迹 / delivery, package, delay or tracking",
+    IntentCategory.REFUND: "首次申请退款 / requesting a new refund",
+    IntentCategory.REFUND_STATUS: "已申请退款但未到账或查询进度 / an existing refund is missing or pending",
+    IntentCategory.RETURN_EXCHANGE: "退货、换货、换新或取件 / return, exchange, replacement or pickup",
+    IntentCategory.ORDER_CANCEL: "申请取消或订单被取消后的问题 / cancel an order or problem caused by cancellation",
+    IntentCategory.PAYMENT_ISSUE: "扣款、支付、返现或未知收费 / charge, payment, cashback or unknown deduction",
+    IntentCategory.DUPLICATE_PAYMENT: "明确重复扣款 / explicitly charged twice",
+    IntentCategory.HUMAN_HANDOFF: "明确要求人工、回电或换客服 / explicitly asks for a human, callback or another agent",
+    IntentCategory.ACCOUNT_SECURITY: "账户被盗或异常使用 / hacked account or unauthorized access",
+    IntentCategory.ADDRESS_CHANGE: "修改配送地址 / change delivery address",
+}
+
 _SPECIFIC_INTENTS = {
     IntentCategory.ORDER_STATUS,
     IntentCategory.LOGISTICS,
@@ -344,12 +358,20 @@ class IntentRecognizer:
                 for m in history[-3:]
             )
 
-        prompt = f"""你是电商客服意图分析专家。根据示例判断用户意图，返回 JSON。
+        definitions = "\n".join(
+            f"- {intent.value}: {description}" for intent, description in _INTENT_DEFINITIONS.items()
+        )
+        prompt = f"""你是电商客服意图分析专家。用户消息可能是中文或英文。根据示例和定义判断主意图，返回 JSON。
 如果用户问题能匹配细粒度业务意图，请优先返回细粒度意图，而不是宽泛大类。
 例如退款优先返回 refund，发票优先返回 invoice，登录故障优先返回 technical_login。
+区分 refund 与 refund_status：尚未申请是 refund；已经申请但未到账是 refund_status。
+用户带有愤怒语气时，仍优先识别其具体业务诉求，不要仅返回 complaint。
 
 示例：
 {examples}
+
+关键意图定义：
+{definitions}
 
         {ctx}
         用户消息: "{message}"
@@ -363,11 +385,15 @@ class IntentRecognizer:
         last_error: Optional[Exception] = None
         for attempt in range(2):
             try:
+                attempt_prompt = prompt if attempt == 0 else (
+                    prompt + '\n你上一次没有返回可解析 JSON。现在只输出单行 JSON，'
+                    '第一个字符必须是 {，最后一个字符必须是 }。不要解释，不要 Markdown。'
+                )
                 resp = await self.client.messages.create(
                     model=self.model,
-                    max_tokens=384,
-                    temperature=0.1,
-                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=768,
+                    temperature=0,
+                    messages=[{"role": "user", "content": attempt_prompt}],
                 )
                 raw = extract_text_content(resp.content)
                 s, e = raw.find("{"), raw.rfind("}") + 1
@@ -421,20 +447,41 @@ class IntentRecognizer:
         # 高信息量复合短语优先，避免“退款多久到账”先被宽泛的“退款”截获。
         priority_patterns = {
             IntentCategory.DUPLICATE_PAYMENT: ["重复扣款", "扣了两次", "两笔支付"],
-            IntentCategory.REFUND_STATUS: ["退款进度", "退款到哪", "退款多久到账", "退款没到账"],
-            IntentCategory.RETURN_EXCHANGE: ["退货", "换货", "退换"],
+            IntentCategory.REFUND_STATUS: [
+                "退款进度", "退款到哪", "退款多久到账", "退款没到账",
+                "refund is still", "still waiting for a refund", "not received my refund",
+                "haven't gotten my refund", "haven’t gotten my refund", "refund not added",
+            ],
+            IntentCategory.RETURN_EXCHANGE: [
+                "退货", "换货", "退换", "return the product", "return an item",
+                "returned item", "replacement item", "exchange", "return initiated",
+            ],
             IntentCategory.DAMAGED_ITEM: ["破损", "少件", "错发", "漏发"],
-            IntentCategory.ORDER_CANCEL: ["取消订单", "撤销订单"],
+            IntentCategory.ORDER_CANCEL: [
+                "取消订单", "撤销订单", "cancel my order", "cancel an order",
+                "order cancelled", "order canceled", "cancelled my order",
+            ],
             IntentCategory.ADDRESS_CHANGE: ["修改地址", "地址填错", "改收货地址"],
+            IntentCategory.PAYMENT_ISSUE: [
+                "cashback", "cash back", "unknown deduction", "unauthorized charge",
+                "unauthorised charge", "double charged", "charged twice",
+            ],
+            IntentCategory.HUMAN_HANDOFF: [
+                "转人工", "人工客服", "找人工", "call back", "callback",
+                "speak with someone", "waiting for a supervisor", "another representative",
+            ],
         }
         best_cat, best_score = self._best_pattern_match(msg, priority_patterns)
         if best_cat != IntentCategory.OTHER:
             return {"intent": best_cat, "confidence": best_score}
 
         specific_patterns = {
-            IntentCategory.HUMAN_HANDOFF: ["转人工", "人工客服", "找人工"],
+            IntentCategory.HUMAN_HANDOFF: ["转人工", "人工客服", "找人工", "human agent"],
             IntentCategory.ORDER_STATUS: ["订单状态", "发货了吗", "处理到哪", "order status"],
-            IntentCategory.LOGISTICS: ["物流", "快递", "配送", "运单", "delivery", "shipping"],
+            IntentCategory.LOGISTICS: [
+                "物流", "快递", "配送", "运单", "delivery", "shipping", "package",
+                "courier", "tracking",
+            ],
             IntentCategory.REFUND: ["退款", "退货", "refund", "return"],
             IntentCategory.INVOICE: ["发票", "抬头", "税号", "invoice"],
             IntentCategory.PAYMENT_ISSUE: ["重复扣款", "多扣", "支付失败", "扣费", "payment failed"],
